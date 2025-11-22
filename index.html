@@ -25,6 +25,7 @@ async function start() {
         const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
         const kpRes = await fetch(allohaURL);
         const kpData = await kpRes.json();
+        console.log(kpData);
 
         const kpId = kpData.id_kp || kpData.kinopoisk_id;
 
