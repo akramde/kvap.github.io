@@ -28,12 +28,12 @@ async function fetchNamy(imdb) {
 
     let dataStr = makePlayerMatch[1];
 
-    // استخدام Function لتقييم النص كـ JavaScript
+    // تقييم النص كـ JavaScript
     let data;
     try {
         data = (new Function("return " + dataStr))();
         return {
-            dash: data.source.dasha || "Not found",
+            dash: data.source.dash || data.source.dasha || "Not found",
             cc: data.source.cc || []
         };
     } catch (err) {
@@ -41,6 +41,7 @@ async function fetchNamy(imdb) {
         return null;
     }
 }
+
 
 
 // --- Main extraction ---
