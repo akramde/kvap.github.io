@@ -2,18 +2,12 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>KVAP Multi HLS/DASH/CC Extractor</title>
+  <title>KVAP IMDb JSON Extractor</title>
 </head>
 <body>
 
-<h2>Extract HLS, DASH & CC for all vkId and Namy</h2>
-
-<input id="imdbInput" placeholder="Enter IMDb ID مثل: tt0241527" style="width:250px;">
-<button onclick="start()">Start</button>
-
-<pre id="output" style="white-space: pre-wrap; background:#eee; padding:10px;"></pre>
-
 <script>
+// --- Namy extraction ---
 async function fetchNamy(imdb) {
     const url = `https://api.namy.ws/embed/imdb/${imdb}`;
     const res = await fetch(url);
@@ -27,14 +21,13 @@ async function fetchNamy(imdb) {
 
     let dataStr = makePlayerMatch[1];
 
-    // تقييم النص كـ JavaScript
     let data;
     try {
         data = (new Function("return " + dataStr))();
         return {
-              dash: data.source.dash || data.source.dasha || "Not found",
-    hls: ("hls" in data.source) ? data.source.hls : "Not found",
-    cc: data.source.cc || []
+            dash: data.source.dash || data.source.dasha || "Not found",
+            hls: ("hls" in data.source) ? data.source.hls : "Not found",
+            cc: data.source.cc || []
         };
     } catch (err) {
         console.error("Error evaluating Namy data:", err);
@@ -42,70 +35,72 @@ async function fetchNamy(imdb) {
     }
 }
 
-
-
-// --- Main extraction ---
-async function start() {
-    const imdb = document.getElementById("imdbInput").value.trim();
-    const out = document.getElementById("output");
-    out.textContent = "Processing...";
-
+// --- VK extraction ---
+async function fetchVK(imdb) {
     try {
+        const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
+        const kpRes = await fetch(allohaURL);
+        const kpData = await kpRes.json();
+        const kpId = kpData?.data?.id_kp;
+        if (!kpId) return [];
+
+        const playlistURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`;
+        const playlistRes = await fetch(playlistURL);
+        const playlistData = await playlistRes.json();
+        const items = playlistData?.items || playlistData?.data?.items || [];
+
         let results = [];
-
-        // --- Step 1: VK Extraction ---
-        try {
-            const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
-            const kpRes = await fetch(allohaURL);
-            const kpData = await kpRes.json();
-            const kpId = kpData?.data?.id_kp;
-            if (kpId) {
-                const playlistURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`;
-                const playlistRes = await fetch(playlistURL);
-                const playlistData = await playlistRes.json();
-                const items = playlistData?.items || playlistData?.data?.items;
-
-                if (items && items.length > 0) {
-                    for (let item of items) {
-                        const vkId = item.vkId;
-                        if (!vkId) continue;
-                        const videoURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
-                        const videoRes = await fetch(videoURL);
-                        const videoData = await videoRes.json();
-                        results.push({
-                            source: "VK",
-                            vkId,
-                            hls: videoData?.sources?.hlsUrl || "Not found",
-                            dash: videoData?.sources?.dashUrl || "Not found"
-                        });
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn("VK extraction failed:", err.message);
+        for (let item of items) {
+            const vkId = item.vkId;
+            if (!vkId) continue;
+            const videoURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
+            const videoRes = await fetch(videoURL);
+            const videoData = await videoRes.json();
+            results.push({
+                source: "VK",
+                vkId,
+                hls: videoData?.sources?.hlsUrl || "Not found",
+                dash: videoData?.sources?.dashUrl || "Not found"
+            });
         }
-
-        // --- Step 2: Namy Extraction ---
-        try {
-            const namyData = await fetchNamy(imdb);
-            if (namyData) {
-                results.push({
-                    source: "Namy",
-                    dash: namyData.dash,
-                    hls: namyData.hls,
-                    cc: namyData.cc
-                });
-            }
-        } catch (err) {
-            console.warn("Namy extraction failed:", err.message);
-        }
-
-        out.textContent = JSON.stringify(results, null, 2);
-
+        return results;
     } catch (err) {
-        out.textContent = "❌ Error: " + err.message;
+        console.warn("VK extraction failed:", err.message);
+        return [];
     }
 }
+
+// --- Main ---
+(async function() {
+    try {
+        const pathParts = location.pathname.split('/');
+        const imdb = pathParts[pathParts.length - 1]; // آخر جزء من الرابط
+        if (!imdb) throw new Error("IMDb ID not found in URL");
+
+        let results = [];
+
+        // VK
+        const vkData = await fetchVK(imdb);
+        results = results.concat(vkData);
+
+        // Namy
+        const namyData = await fetchNamy(imdb);
+        if (namyData) {
+            results.push({
+                source: "Namy",
+                dash: namyData.dash,
+                hls: namyData.hls,
+                cc: namyData.cc
+            });
+        }
+
+        // عرض JSON فقط
+        document.body.textContent = JSON.stringify(results, null, 2);
+
+    } catch (err) {
+        document.body.textContent = JSON.stringify({ error: err.message });
+    }
+})();
 </script>
 
 </body>
