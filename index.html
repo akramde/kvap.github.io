@@ -1,48 +1,36 @@
 <!DOCTYPE html>
+
 <html lang="ar">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Extractor — VK + Namy.ws</title>
-
-<link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VK + Namy.ws Extractor</title>
 </head>
-
 <body>
+<h2>VK + Namy.ws Extractor</h2>
+<input type="text" id="imdb" placeholder="Enter IMDb ID" style="width:200px;">
+<button id="startBtn">Fetch</button>
 
-<h1>Extractor — VK + Namy.ws</h1>
-<p>أدخل IMDb ID (مثل <code>tt0241527</code>) واضغط Start. ستظهر جميع المصادر (VK items + Namy.ws) في قسم واحد.</p>
-
-<div class="card">
-  <div class="row">
-    <input id="imdb" placeholder="Enter IMDb ID — مثال: tt0241527" style="min-width:220px">
-    <button class="primary" id="startBtn">Start</button>
-    <button class="ghost" id="clearBtn">Clear</button>
-  </div>
-
-  <div style="margin-top:8px">
-    <label><input type="checkbox" id="useProxy" /> استخدم CORS proxy تلقائياً عند الفشل</label>
-  </div>
-
-  <div class="actions">
-    <button id="copyBtn" class="ghost">نسخ JSON</button>
-    <button id="downloadBtn" class="ghost">تحميل JSON</button>
-  </div>
-</div>
-
-<div id="status" class="card"><small class="gray">مستعد</small></div>
-
-<div id="results"></div>
-
-<pre id="debug"></pre>
+<pre id="output" style="white-space: pre-wrap; background:#f4f4f4; padding:10px;"></pre>
 
 <script src="app.js"></script>
+
 <script>
 document.getElementById('startBtn').addEventListener('click', async () => {
     const imdb = document.getElementById('imdb').value.trim();
     if (!imdb) return alert('Enter IMDb ID');
-    const results = await window.extractForImdb(imdb);
-    console.log(results);
+
+    const output = document.getElementById('output');
+    output.textContent = 'Fetching...';
+
+    try {
+        const results = await window.extractForImdb(imdb);
+        output.textContent = JSON.stringify(results, null, 2);
+        console.log(results);
+    } catch (err) {
+        output.textContent = 'Error: ' + err.message;
+        console.error(err);
+    }
 });
 </script>
 
