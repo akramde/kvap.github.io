@@ -32,9 +32,9 @@ async function fetchNamy(imdb) {
     try {
         data = (new Function("return " + dataStr))();
         return {
-             dash: data.source.dash || data.source.dasha || "Not found",
-             hls: data.source.hls || "Not found",
-             cc: data.source.cc || []
+              dash: data.source.dash || data.source.dasha || "Not found",
+    hls: ("hls" in data.source) ? data.source.hls : "Not found",
+    cc: data.source.cc || []
         };
     } catch (err) {
         console.error("Error evaluating Namy data:", err);
