@@ -1,8 +1,8 @@
-// app.js — Modular VK + Namy.ws extractor
+// app.js — Modular VK + Namy.ws extractor with headers for Namy.ws
 
-export async function fetchWithFallback(url, asText = false, useProxy = true) {
+export async function fetchWithFallback(url, asText = false, useProxy = true, headers = {}) {
 try {
-const res = await fetch(url);
+const res = await fetch(url, { headers });
 if (!res.ok) throw new Error('HTTP ' + res.status);
 return asText ? res.text() : res.json();
 } catch (errDirect) {
@@ -10,13 +10,13 @@ if (!useProxy) throw errDirect;
 // corsproxy.io
 try {
 const p = '[https://corsproxy.io/](https://corsproxy.io/)?' + new URLSearchParams({ url });
-const res2 = await fetch(p);
+const res2 = await fetch(p, { headers });
 if (!res2.ok) throw new Error('Proxy1 HTTP ' + res2.status);
 return asText ? res2.text() : res2.json();
 } catch (errProxy1) {
 const encoded = encodeURIComponent(url);
 const p2 = '[https://api.allorigins.win/raw?url=](https://api.allorigins.win/raw?url=)' + encoded;
-const res3 = await fetch(p2);
+const res3 = await fetch(p2, { headers });
 if (!res3.ok) throw new Error('Proxy2 HTTP ' + res3.status);
 return asText ? res3.text() : res3.json();
 }
@@ -24,7 +24,8 @@ return asText ? res3.text() : res3.json();
 }
 
 export async function fetchTextWithFallback(url, useProxy = true) {
-return fetchWithFallback(url, true, useProxy);
+const headers = { 'User-Agent': 'Mozilla/5.0', 'Referer': '[https://namy.ws/](https://namy.ws/)' };
+return fetchWithFallback(url, true, useProxy, headers);
 }
 
 // Parse JS object literal safely
