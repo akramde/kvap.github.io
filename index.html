@@ -44,8 +44,8 @@ async function start() {
         const videoRes = await fetch(videoURL);
         const videoData = await videoRes.json();
 
-        const hls = videoData?.hls;
-        const dash = videoData?.dash;
+        const hls = videoData?.sources?.hls;
+        const dash = videoData?.sources?.dash;
 
         if (!hls && !dash) throw new Error("HLS or DASH not found!");
 
