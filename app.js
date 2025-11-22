@@ -1,4 +1,4 @@
-// app.js — VK + Namy.ws extractor جاهز للاستخدام في أي HTML
+// app.js — VK + Namy.ws extractor جاهز
 
 async function fetchWithFallback(url, asText = false, useProxy = true, headers = {}) {
 try {
@@ -56,8 +56,8 @@ return {
     sourceName: 'Namy.ws',
     vkId: null,
     studio: null,
-    hls,
-    dash,
+    hls: hls ? String(hls) : null,
+    dash: dash ? String(dash) : null,
     cc
 };
 ```
@@ -87,8 +87,8 @@ for (const item of items) {
             sourceName: 'VK',
             vkId,
             studio,
-            hls,
-            dash,
+            hls: hls ? String(hls) : null,
+            dash: dash ? String(dash) : null,
             cc: []
         });
     } catch (err) {
@@ -129,5 +129,5 @@ return [...vkItems, namyItem];
 
 }
 
-// تعيين الدالة لعالم النافذة لتتمكن من استخدامها في HTML مباشرة
+// Make available globally
 window.extractForImdb = extractForImdb;
