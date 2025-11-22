@@ -6,7 +6,7 @@
 </head>
 <body>
 
-<h2>Extract HLS & DASH for all vkId</h2>
+<h2>Extract HLS & DASH (with Voice Studio)</h2>
 
 <input id="imdbInput" placeholder="Enter IMDb ID مثل: tt0241527" style="width:250px;">
 <button onclick="start()">Start</button>
@@ -27,7 +27,7 @@ async function start() {
         const kpId = kpData?.data?.id_kp;
         if (!kpId) throw new Error("Kinopoisk ID not found!");
 
-        // Step 2 — Get playlist with vkId(s)
+        // Step 2 — Get playlist with multiple items
         const playlistURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`;
         const playlistRes = await fetch(playlistURL);
         const playlistData = await playlistRes.json();
@@ -37,11 +37,14 @@ async function start() {
 
         let results = [];
 
-        // Step 3 — Iterate over all vkId
+        // Step 3 — Loop through all vkId items
         for (let item of items) {
             const vkId = item.vkId;
+            const voiceStudio = item.voiceStudio || "Unknown";
+
             if (!vkId) continue;
 
+            // Request video info
             const videoURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
             const videoRes = await fetch(videoURL);
             const videoData = await videoRes.json();
@@ -51,12 +54,13 @@ async function start() {
 
             results.push({
                 vkId,
+                voiceStudio,
                 hls: hls || "Not found",
                 dash: dash || "Not found"
             });
         }
 
-        // Step 4 — Output all results
+        // Step 4 — Output results
         out.textContent = JSON.stringify(results, null, 2);
 
     } catch (err) {
