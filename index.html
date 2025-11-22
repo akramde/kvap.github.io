@@ -25,7 +25,7 @@ async function start() {
         const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
         const kpRes = await fetch(allohaURL);
         const kpData = await kpRes.json();
-        console.log(kpData);
+    
 
         const kpId = kpData?.data?.id_kp;
 
@@ -36,7 +36,7 @@ async function start() {
         const playlistRes = await fetch(playlistURL);
         const playlistData = await playlistRes.json();
 
-        const vkId = playlistData?.data?.items?.[0]?.vkId;
+        const vkId = playlistData?.items?.[0]?.vkId;
         if (!vkId) throw new Error("vkId not found!");
 
         // 3️⃣ Step 3 — vkId → video info
