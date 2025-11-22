@@ -2,12 +2,10 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>KVAP IMDb JSON Extractor</title>
 </head>
 <body>
 
 <script>
-// --- Namy extraction ---
 async function fetchNamy(imdb) {
     const url = `https://api.namy.ws/embed/imdb/${imdb}`;
     const res = await fetch(url);
@@ -35,7 +33,6 @@ async function fetchNamy(imdb) {
     }
 }
 
-// --- VK extraction ---
 async function fetchVK(imdb) {
     try {
         const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
@@ -70,20 +67,17 @@ async function fetchVK(imdb) {
     }
 }
 
-// --- Main ---
 (async function() {
     try {
-        const pathParts = location.pathname.split('/');
-        const imdb = pathParts[pathParts.length - 1]; // آخر جزء من الرابط
-        if (!imdb) throw new Error("IMDb ID not found in URL");
+        const params = new URLSearchParams(location.search);
+        const imdb = params.get("imdb");
+        if (!imdb) throw new Error("IMDb ID not found in URL query (?imdb=...)");
 
         let results = [];
 
-        // VK
         const vkData = await fetchVK(imdb);
         results = results.concat(vkData);
 
-        // Namy
         const namyData = await fetchNamy(imdb);
         if (namyData) {
             results.push({
@@ -94,9 +88,7 @@ async function fetchVK(imdb) {
             });
         }
 
-        // عرض JSON فقط
         document.body.textContent = JSON.stringify(results, null, 2);
-
     } catch (err) {
         document.body.textContent = JSON.stringify({ error: err.message });
     }
