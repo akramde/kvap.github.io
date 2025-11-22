@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>KVAP Extractor</title>
+  <meta charset="UTF-8">
+  <title>KVAP Multi HLS/DASH Extractor</title>
 </head>
 <body>
 
-<h2>Extract</h2>
+<h2>Extract HLS & DASH for all vkId</h2>
 
 <input id="imdbInput" placeholder="Enter IMDb ID مثل: tt0241527" style="width:250px;">
 <button onclick="start()">Start</button>
@@ -20,41 +20,44 @@ async function start() {
     out.textContent = "Processing...";
 
     try {
-
-        // 1️⃣ Step 1 — IMDb → Kinopoisk ID
+        // Step 1 — IMDb → Kinopoisk ID
         const allohaURL = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdb}`;
         const kpRes = await fetch(allohaURL);
         const kpData = await kpRes.json();
-    
-
         const kpId = kpData?.data?.id_kp;
-
         if (!kpId) throw new Error("Kinopoisk ID not found!");
 
-        // 2️⃣ Step 2 — Kinopoisk → vkId
+        // Step 2 — Get playlist with vkId(s)
         const playlistURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`;
         const playlistRes = await fetch(playlistURL);
         const playlistData = await playlistRes.json();
 
-        const vkId = playlistData?.items?.[0]?.vkId;
-        if (!vkId) throw new Error("vkId not found!");
+        const items = playlistData?.items || playlistData?.data?.items;
+        if (!items || items.length === 0) throw new Error("No vkId items found!");
 
-        // 3️⃣ Step 3 — vkId → video info
-        const videoURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
-        const videoRes = await fetch(videoURL);
-        const videoData = await videoRes.json();
+        let results = [];
 
-        const hls = videoData?.sources?.hlsUrl;
-        const dash = videoData?.sources?.dashUrl;
+        // Step 3 — Iterate over all vkId
+        for (let item of items) {
+            const vkId = item.vkId;
+            if (!vkId) continue;
 
-        if (!hls && !dash) throw new Error("HLS or DASH not found!");
+            const videoURL = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
+            const videoRes = await fetch(videoURL);
+            const videoData = await videoRes.json();
 
-        // 4️⃣ Output results
-        out.textContent =
-            "Kinopoisk ID: " + kpId + "\n" +
-            "vkId: " + vkId + "\n\n" +
-            "HLS:\n" + hls + "\n\n" +
-            "DASH:\n" + dash;
+            const hls = videoData?.sources?.hlsUrl;
+            const dash = videoData?.sources?.dashUrl;
+
+            results.push({
+                vkId,
+                hls: hls || "Not found",
+                dash: dash || "Not found"
+            });
+        }
+
+        // Step 4 — Output all results
+        out.textContent = JSON.stringify(results, null, 2);
 
     } catch (err) {
         out.textContent = "❌ Error: " + err.message;
