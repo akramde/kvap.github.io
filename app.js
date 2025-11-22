@@ -1,297 +1,137 @@
-// ------------------ UTILITIES ------------------
+// app.js — Modular VK + Namy.ws extractor
 
-const startBtn = document.getElementById('startBtn');
-const clearBtn = document.getElementById('clearBtn');
-const copyBtn = document.getElementById('copyBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const resultsEl = document.getElementById('results');
-const debugEl = document.getElementById('debug');
-const statusEl = document.getElementById('status');
-const useProxyCheckbox = document.getElementById('useProxy');
-
-function setStatus(txt) {
-  statusEl.innerHTML = '<small class="gray">' + txt + '</small>';
+export async function fetchWithFallback(url, asText = false, useProxy = true) {
+try {
+const res = await fetch(url);
+if (!res.ok) throw new Error('HTTP ' + res.status);
+return asText ? res.text() : res.json();
+} catch (errDirect) {
+if (!useProxy) throw errDirect;
+// corsproxy.io
+try {
+const p = '[https://corsproxy.io/](https://corsproxy.io/)?' + new URLSearchParams({ url });
+const res2 = await fetch(p);
+if (!res2.ok) throw new Error('Proxy1 HTTP ' + res2.status);
+return asText ? res2.text() : res2.json();
+} catch (errProxy1) {
+const encoded = encodeURIComponent(url);
+const p2 = '[https://api.allorigins.win/raw?url=](https://api.allorigins.win/raw?url=)' + encoded;
+const res3 = await fetch(p2);
+if (!res3.ok) throw new Error('Proxy2 HTTP ' + res3.status);
+return asText ? res3.text() : res3.json();
+}
+}
 }
 
-function logDebug(obj) {
-  debugEl.textContent =
-    typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+export async function fetchTextWithFallback(url, useProxy = true) {
+return fetchWithFallback(url, true, useProxy);
 }
 
-// ----- Fetch with fallback -----
-
-async function fetchWithFallback(url, asText = false) {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return asText ? res.text() : res.json();
-  } catch (errDirect) {
-    if (!useProxyCheckbox.checked) throw errDirect;
-
-    try {
-      const p = 'https://corsproxy.io/?' + new URLSearchParams({ url });
-      const r = await fetch(p);
-      if (!r.ok) throw new Error('proxy1 HTTP ' + r.status);
-      return asText ? r.text() : r.json();
-    } catch (errProxy1) {
-      try {
-        const enc = encodeURIComponent(url);
-        const r2 = await fetch(
-          'https://api.allorigins.win/raw?url=' + enc
-        );
-        if (!r2.ok) throw new Error('proxy2 HTTP ' + r2.status);
-        return asText ? r2.text() : r2.json();
-      } catch (errProxy2) {
-        throw new Error(
-          'Fetch failed: ' +
-            errDirect.message +
-            ' | ' +
-            errProxy1.message +
-            ' | ' +
-            errProxy2.message
-        );
-      }
-    }
-  }
+// Parse JS object literal safely
+export function safeEvalObj(str) {
+try {
+return new Function('return ' + str)();
+} catch (e) {
+throw new Error('safeEval failed: ' + e.message);
+}
 }
 
-async function fetchTextWithFallback(url) {
-  return fetchWithFallback(url, true);
-}
+// Extract Namy.ws sources
+export async function extractFromNamy(imdbId, useProxy = true) {
+const url = `https://api.namy.ws/embed/imdb/${imdbId}`;
+const html = await fetchTextWithFallback(url, useProxy);
 
-// ----- Safe JS object → JSON -----
+```
+const mkMatch = html.match(/<script[^>]*data-name=["']mk["'][^>]*>([\s\S]*?)<\/script>/i);
+if (!mkMatch) throw new Error('mk script not found');
 
-function jsObjectStringToJSON(str) {
-  let s = str.trim();
+const objMatch = mkMatch[1].match(/makePlayer\s*\(\s*([\s\S]*?)\s*\)\s*;?/);
+if (!objMatch) throw new Error('makePlayer object not found');
 
-  if (s.startsWith('makePlayer')) {
-    const m = s.match(/makePlayer\s*\(\s*([\s\S]*)\)\s*;?\s*$/);
-    if (m) s = m[1];
-  }
+const obj = safeEvalObj(objMatch[1]);
 
-  if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1);
+const dash = obj?.source?.dasha || obj?.source?.dash || null;
+const hls  = obj?.source?.hls || obj?.source?.hlsUrl || null;
+const cc   = obj?.source?.cc || [];
 
-  s = s.replace(
-    /([{\s,])([A-Za-z0-9_@\$]+)\s*:/g,
-    (m, pre, key) => `${pre}"${key}":`
-  );
-
-  s = s.replace(/'([^']*)'/g, (_, inner) =>
-    `"${inner.replace(/"/g, '\\"')}"`
-  );
-
-  s = s.replace(/,(\s*[}\]])/g, '$1');
-
-  return JSON.parse(s);
-}
-
-// ------------------ NAMY extractor ------------------
-
-async function extractFromNamy(imdbId) {
-  const url = `https://api.namy.ws/embed/imdb/${imdbId}`;
-  setStatus('جلب namy.ws...');
-
-  const html = await fetchTextWithFallback(url);
-
-  const mkMatch = html.match(
-    /<script[^>]*data-name=["']mk["'][^>]*>([\s\S]*?)<\/script>/i
-  );
-  if (!mkMatch) throw new Error('mk script not found');
-
-  const objMatch = mkMatch[1].match(
-    /makePlayer\s*\(\s*([\s\S]*?)\s*\)\s*;?/
-  );
-  if (!objMatch) throw new Error('makePlayer object missing');
-
-  const obj = jsObjectStringToJSON(objMatch[1]);
-
-  return {
+return {
     sourceName: 'Namy.ws',
-    studio: null,
     vkId: null,
-    hls: obj?.source?.hls || null,
-    dash: obj?.source?.dasha || obj?.source?.dash || null,
-    cc: obj?.source?.cc || []
-  };
+    studio: null,
+    hls,
+    dash,
+    cc
+};
+```
+
 }
 
-// ------------------ MAIN extractor ------------------
+// Extract VK items
+export async function extractVKItems(kpId, useProxy = true) {
+const playlistUrl = `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`;
+const playlistData = await fetchWithFallback(playlistUrl, false, useProxy);
+const items = playlistData?.items || playlistData?.data?.items || [];
+const combined = [];
 
-async function extractForImdb(imdbId) {
-  setStatus('بدأ ...');
-  resultsEl.innerHTML = '';
-  logDebug('starting...');
-
-  // 1) get kpid from alloha
-  setStatus('جلب Kinopoisk ID ...');
-  const alloha = await fetchWithFallback(
-    `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdbId}`
-  );
-
-  logDebug({ alloha });
-
-  const kpId =
-    alloha?.data?.id_kp || alloha?.id_kp || alloha?.kinopoisk_id;
-  if (!kpId) throw new Error('Kinopoisk ID not found');
-
-  // 2) playlist
-  setStatus('جلب playlist ...');
-  const playlist = await fetchWithFallback(
-    `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=12&aggr=kp&id=${kpId}`
-  );
-
-  logDebug({ playlist });
-
-  const items =
-    playlist?.items || playlist?.data?.items || playlist?.items || [];
-
-  const combined = [];
-
-  // 3) for each VK item
-  setStatus('جلب بيانات الفيديو ...');
-
-  for (const item of items) {
+```
+for (const item of items) {
     const vkId = item?.vkId || item?.id || item?.cvhId;
     const studio = item?.voiceStudio || item?.studio || null;
-
     if (!vkId) continue;
 
     try {
-      const video = await fetchWithFallback(
-        `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`
-      );
+        const videoUrl = `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${vkId}`;
+        const videoData = await fetchWithFallback(videoUrl, false, useProxy);
+        const sources = videoData?.sources || videoData?.data?.sources || {};
+        const hls = sources?.hlsUrl || sources?.hls || null;
+        const dash = sources?.dashUrl || sources?.dasha || sources?.dash || null;
 
-      logDebug({ video });
-
-      const src = video?.sources || video?.data?.sources || {};
-
-      combined.push({
-        sourceName: 'VK',
-        vkId,
-        studio,
-        hls: src.hlsUrl || src.hls || null,
-        dash: src.dashUrl || src.dasha || src.dash || null,
-        cc: []
-      });
+        combined.push({
+            sourceName: 'VK',
+            vkId,
+            studio,
+            hls,
+            dash,
+            cc: []
+        });
     } catch (err) {
-      combined.push({
-        sourceName: 'VK',
-        vkId,
-        studio,
-        hls: null,
-        dash: null,
-        cc: [],
-        error: err.message
-      });
+        combined.push({
+            sourceName: 'VK',
+            vkId,
+            studio,
+            hls: null,
+            dash: null,
+            cc: [],
+            error: 'video fetch failed: ' + err.message
+        });
     }
-  }
+}
+return combined;
+```
 
-  // 4) NAMY.WS
-  try {
-    combined.push(await extractFromNamy(imdbId));
-  } catch (err) {
-    combined.push({
-      sourceName: 'Namy.ws',
-      hls: null,
-      dash: null,
-      cc: [],
-      error: err.message
-    });
-  }
-
-  setStatus('تم الانتهاء');
-  renderResults(combined);
-  window.lastCombinedResult = combined;
 }
 
-// ------------------ RENDER ------------------
+// Main extractor
+export async function extractForImdb(imdbId, useProxy = true) {
+// get kpId from alloha.tv
+const allohaUrl = `https://api.alloha.tv/?token=d317441359e505c343c2063edc97e7&imdb=${imdbId}`;
+const allohaData = await fetchWithFallback(allohaUrl, false, useProxy);
+const kpId = allohaData?.data?.id_kp || allohaData?.id_kp || allohaData?.kinopoisk_id;
+if (!kpId) throw new Error('Kinopoisk ID not found');
 
-function renderResults(arr) {
-  resultsEl.innerHTML = '';
+```
+// VK items
+const vkItems = await extractVKItems(kpId, useProxy);
 
-  const header = document.createElement('div');
-  header.className = 'card';
-  header.innerHTML = `<strong>Results (${arr.length})</strong>`;
-  resultsEl.appendChild(header);
-
-  arr.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'source';
-
-    const t = document.createElement('div');
-    t.className = 'title';
-    t.textContent =
-      'Source: ' +
-      item.sourceName +
-      (item.studio ? ' — Studio: ' + item.studio : '');
-    div.appendChild(t);
-
-    if (item.vkId) {
-      div.innerHTML += `<small class="gray">vkId:</small> ${item.vkId}<br>`;
-    }
-
-    div.innerHTML +=
-      `<small class="gray">HLS:</small> ` +
-      (item.hls
-        ? `<a class="link" target="_blank" href="${item.hls}">${item.hls}</a>`
-        : '<em>Not found</em>') +
-      '<br>';
-
-    div.innerHTML +=
-      `<small class="gray">DASH:</small> ` +
-      (item.dash
-        ? `<a class="link" target="_blank" href="${item.dash}">${item.dash}</a>`
-        : '<em>Not found</em>');
-
-    if (item.cc?.length) {
-      div.innerHTML += `<div><small class="gray">Subtitles (CC):</small></div>`;
-      const ul = document.createElement('ul');
-      item.cc.forEach(c => {
-        const li = document.createElement('li');
-        li.innerHTML = `${c.name}: <a class="link" href="${c.url}" target="_blank">${c.url}</a>`;
-        ul.appendChild(li);
-      });
-      div.appendChild(ul);
-    }
-
-    if (item.error) {
-      div.innerHTML += `<br><small style="color:red">Error: ${item.error}</small>`;
-    }
-
-    resultsEl.appendChild(div);
-  });
+// Namy.ws
+let namyItem;
+try {
+    namyItem = await extractFromNamy(imdbId, useProxy);
+} catch (err) {
+    namyItem = { sourceName: 'Namy.ws', vkId: null, studio: null, hls: null, dash: null, cc: [], error: err.message };
 }
 
-// ------------------ BUTTONS ------------------
+return [...vkItems, namyItem];
+```
 
-startBtn.onclick = () => {
-  const imdb = document.getElementById('imdb').value.trim();
-  if (!imdb) return alert('Please enter IMDb ID');
-  extractForImdb(imdb);
-};
-
-clearBtn.onclick = () => {
-  document.getElementById('imdb').value = '';
-  resultsEl.innerHTML = '';
-  debugEl.textContent = '';
-  setStatus('Cleared');
-  window.lastCombinedResult = null;
-};
-
-copyBtn.onclick = () => {
-  if (!window.lastCombinedResult) return alert('لا توجد نتائج');
-  navigator.clipboard.writeText(
-    JSON.stringify(window.lastCombinedResult, null, 2)
-  );
-  alert('Copied!');
-};
-
-downloadBtn.onclick = () => {
-  if (!window.lastCombinedResult) return alert('لا توجد نتائج');
-  const a = document.createElement('a');
-  a.href =
-    'data:text/json;charset=utf-8,' +
-    encodeURIComponent(JSON.stringify(window.lastCombinedResult, null, 2));
-  a.download = 'sources.json';
-  a.click();
-};
+}
