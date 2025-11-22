@@ -27,7 +27,7 @@ async function start() {
         const kpData = await kpRes.json();
         console.log(kpData);
 
-        const kpId = kpData.id_kp || kpData.kinopoisk_id;
+        const kpId = kpData?.data?.id_kp;
 
         if (!kpId) throw new Error("Kinopoisk ID not found!");
 
