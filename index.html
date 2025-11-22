@@ -37,5 +37,14 @@
 <pre id="debug"></pre>
 
 <script src="app.js"></script>
+<script>
+document.getElementById('startBtn').addEventListener('click', async () => {
+    const imdb = document.getElementById('imdb').value.trim();
+    if (!imdb) return alert('Enter IMDb ID');
+    const results = await window.extractForImdb(imdb);
+    console.log(results);
+});
+</script>
+
 </body>
 </html>
