@@ -26,7 +26,8 @@ async function start() {
         const kpRes = await fetch(allohaURL);
         const kpData = await kpRes.json();
 
-        const kpId = kpData.id_kp;
+        const kpId = kpData.id_kp || kpData.kinopoisk_id;
+
         if (!kpId) throw new Error("Kinopoisk ID not found!");
 
         // 2️⃣ Step 2 — Kinopoisk → vkId
