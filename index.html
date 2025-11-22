@@ -15,7 +15,6 @@
 <pre id="output" style="white-space: pre-wrap; background:#eee; padding:10px;"></pre>
 
 <script>
-// --- Namy extraction ---
 async function fetchNamy(imdb) {
     const url = `https://api.namy.ws/embed/imdb/${imdb}`;
     const res = await fetch(url);
@@ -29,20 +28,20 @@ async function fetchNamy(imdb) {
 
     let dataStr = makePlayerMatch[1];
 
-    // تحويل النص إلى JSON صالح
-    dataStr = dataStr.replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":');
-
+    // استخدام Function لتقييم النص كـ JavaScript
+    let data;
     try {
-        const data = JSON.parse(dataStr);
+        data = (new Function("return " + dataStr))();
         return {
             dash: data.source.dasha || "Not found",
             cc: data.source.cc || []
         };
     } catch (err) {
-        console.error("Error parsing Namy data:", err);
+        console.error("Error evaluating Namy data:", err);
         return null;
     }
 }
+
 
 // --- Main extraction ---
 async function start() {
