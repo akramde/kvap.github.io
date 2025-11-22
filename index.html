@@ -2,9 +2,14 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <title>KVAP IMDb JSON Extractor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/json-formatter-js@2.3.3/dist/json-formatter.min.css" />
 </head>
 <body>
 
+<div id="json-formatter-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/json-formatter-js@2.3.3/dist/json-formatter.umd.min.js"></script>
 <script>
 async function fetchNamy(imdb) {
     const url = `https://api.namy.ws/embed/imdb/${imdb}`;
@@ -88,9 +93,14 @@ async function fetchVK(imdb) {
             });
         }
 
-        document.body.textContent = JSON.stringify(results, null, 2);
+        // عرض JSON بشكل جميل
+        const container = document.getElementById("json-formatter-container");
+        const formatter = new JSONFormatter(results, 2, { theme: 'dark' });
+        container.appendChild(formatter.render());
+
     } catch (err) {
-        document.body.textContent = JSON.stringify({ error: err.message });
+        const container = document.getElementById("json-formatter-container");
+        container.textContent = JSON.stringify({ error: err.message }, null, 2);
     }
 })();
 </script>
