@@ -2,36 +2,41 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8" />
-<title>Video Fetcher Pro</title>
+<title>Video Fetcher Ultimate</title>
 <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background-color: #f4f4f9; padding: 20px; }
     h2 { color: #333; }
     label { display: block; margin-top: 10px; font-weight: bold; }
     input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-    button { margin-top: 20px; padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+    button { margin-top: 20px; padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
     button:hover { background-color: #218838; }
     .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
-    .source h3 { margin-top: 0; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    .link-item { margin-bottom: 8px; padding: 8px; background: #f9f9f9; border-radius: 3px; border: 1px solid #eee; word-break: break-all; }
-    .link-item a { text-decoration: none; color: #333; font-weight: bold; }
-    .tag { display: inline-block; padding: 2px 6px; font-size: 12px; border-radius: 3px; margin-right: 5px; color: white; }
-    .tag-direct { background-color: #28a745; } /* أخضر للمباشر */
-    .tag-nav { background-color: #ffc107; color: #333; } /* أصفر للتصفح */
-    .loader { display: none; color: #666; margin-top: 10px; }
+    .source h3 { margin-top: 0; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; }
+    .link-group { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 10px; }
+    .link-item { margin-bottom: 8px; padding: 10px; background: #f1f1f1; border-radius: 4px; word-break: break-all; border: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;}
+    .link-info { flex: 1; }
+    .link-item a { text-decoration: none; color: #0056b3; font-weight: bold; display: block; margin-top: 5px; }
+    .tag { padding: 3px 8px; font-size: 12px; border-radius: 12px; color: white; font-weight: normal; margin-left: 5px; white-space: nowrap; }
+    .tag-play { background-color: #28a745; } /* تشغيل */
+    .tag-link { background-color: #ffc107; color: #333; } /* تصفح */
+    .tag-iframe { background-color: #17a2b8; } /* iframe */
+    .tag-unknown { background-color: #6c757d; } /* غير معروف */
+    .loader { display: none; text-align: center; margin-top: 20px; font-weight: bold; color: #555; }
+    .error-msg { color: red; padding: 10px; background: #ffe6e6; border: 1px solid red; border-radius: 4px; margin-top: 10px; }
 </style>
 </head>
 <body>
 
-<h2>استخراج روابط المشغلات الشامل</h2>
+<h2>استخراج كافة الروابط (شامل)</h2>
 
 <label>ID: <input id="id" value="464475" /></label>
 <label>IMDB ID: <input id="imdb" value="tt0021884" /></label>
 <label>الاسم: <input id="title" value="Frankenstein" /></label>
 <label>السنة: <input id="year" value="1931" /></label>
 
-<button type="button" onclick="start()">ابدأ البحث</button>
+<button type="button" onclick="start()">ابدأ البحث الشامل</button>
 
-<div id="loader" class="loader">جاري الاتصال بالسيرفر وجلب الروابط، يرجى الانتظار...</div>
+<div id="loader" class="loader">جاري فحص جميع المصادر واستخراج كافة الروابط...</div>
 <div id="output"></div>
 
 <script>
@@ -43,42 +48,41 @@ async function start(){
   const outputDiv = document.getElementById('output');
   const loader = document.getElementById('loader');
 
-  // تنظيف النتائج السابقة وإظهار التحميل فوراً
   outputDiv.innerHTML = '';
   loader.style.display = 'block';
 
+  // الخطوة 1: الحصول على رابط lifeevents
   const base = `https://lam.maxvol.pro/lite/events?life=true&id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
 
   try {
-      // 1. الحصول على memkey
       const res = await fetch(base);
       const j1 = await res.json();
       
-      if(!j1.memkey) {
-          throw new Error("لم يتم العثور على memkey، قد يكون السيرفر مشغولاً.");
-      }
-      const memkey = j1.memkey;
-
-      // 2. الحصول على قائمة المصادر
-      const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${memkey}`;
+      if(!j1.memkey) throw new Error("لم يتم العثور على memkey.");
+      
+      // الرابط الذي طلبت التعامل معه بالتحديد
+      const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${j1.memkey}`;
+      
       const res2 = await fetch(lifeUrl);
       const j2 = await res2.json();
 
+      // تصفية المصادر النشطة
       const sources = j2.online.filter(s => s.show);
       
       if(sources.length === 0) {
-          outputDiv.innerHTML = '<div class="source">لا توجد مصادر متاحة لهذا الفيلم.</div>';
+          outputDiv.innerHTML = '<div class="error-msg">لا توجد مصادر متاحة.</div>';
           loader.style.display = 'none';
           return;
       }
 
-      // 3. جلب الروابط من كل مصدر
-      // نستخدم Promise.all لتسريع العملية (جلب الكل في وقت واحد)
+      // جلب البيانات من كل مصدر
       const promises = sources.map(async (s) => {
+        // بناء الرابط كما هو مطلوب من السيرفر
         const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
         
         try {
-            const html = await (await fetch(infoUrl)).text();
+            const response = await fetch(infoUrl);
+            const html = await response.text();
             return { source: s, html: html };
         } catch (e) {
             return { source: s, error: e.message };
@@ -86,9 +90,8 @@ async function start(){
       });
 
       const results = await Promise.all(promises);
-      loader.style.display = 'none'; // إخفاء التحميل
+      loader.style.display = 'none';
 
-      // معالجة النتائج
       const parser = new DOMParser();
 
       for(const item of results){
@@ -97,88 +100,129 @@ async function start(){
         const s = item.source;
         const html = item.html;
         const doc = parser.parseFromString(html, 'text/html');
+        
+        // البحث عن كل العناصر التي تحتوي على data-json
         const elements = doc.querySelectorAll('[data-json]');
         
-        const extractedData = [];
+        let extractedData = [];
 
-        // أ: استخراج البيانات المنظمة (JSON)
+        // 1. استخراج البيانات من JSON (الأكثر دقة)
         elements.forEach(el => {
             try {
                 let jsonStr = el.getAttribute('data-json');
-                // تصحيح تنسيق JSON إذا كان يحتوي على أخطاء شائعة في HTML
                 if(jsonStr) {
-                    // استبدال &quot; بـ "
-                    jsonStr = jsonStr.replace(/&quot;/g, '"'); 
+                    jsonStr = jsonStr.replace(/&quot;/g, '"'); // إصلاح التنسيق
                     const obj = JSON.parse(jsonStr);
                     
-                    // تحديد الاسم
-                    let label = obj.title || obj.translate || 'Unknown';
+                    // تسمية العنصر
+                    let label = obj.title || obj.translate || obj.name || 'بدون عنوان';
                     if (obj.voice_name) label += ` (${obj.voice_name})`;
-
-                    // إضافة الروابط
-                    if(obj.url) extractedData.push({ url: obj.url, label: label, method: obj.method });
-                    if(obj.stream) extractedData.push({ url: obj.stream, label: label + ' (Stream)', method: obj.method });
                     
-                    // استخراج الجودات
+                    // --- المنطق الجديد الشامل: فحص كل المفاتيح المحتملة للروابط ---
+
+                    // أ. رابط مباشر (url)
+                    if(obj.url) {
+                        extractedData.push(createLinkObj(obj.url, label, obj.method || 'url'));
+                    }
+                    
+                    // ب. رابط بث (stream)
+                    if(obj.stream) {
+                        extractedData.push(createLinkObj(obj.stream, label + ' (Stream)', 'stream'));
+                    }
+
+                    // ج. رابط iframe (أحياناً يكون موجوداً)
+                    if(obj.iframe) {
+                        extractedData.push(createLinkObj(obj.iframe, label + ' (Iframe)', 'iframe'));
+                    }
+
+                    // د. الجودات المتعددة (quality)
                     if(obj.quality) {
-                        Object.keys(obj.quality).forEach(q => {
-                            extractedData.push({ url: obj.quality[q], label: `${label} [${q}]`, method: obj.method });
-                        });
+                        // قد تكون quality مصفوفة أو كائن
+                        if(typeof obj.quality === 'object') {
+                            Object.keys(obj.quality).forEach(q => {
+                                extractedData.push(createLinkObj(obj.quality[q], `${label} [${q}]`, 'quality'));
+                            });
+                        }
                     }
                 }
-            } catch(e) { 
-                // فشل تحليل JSON، نتجاهله هنا لأن Regex سيلتقطه
-            }
+            } catch(e) { /* تجاهل أخطاء التحليل */ }
         });
 
-        // ب: استخراج الروابط المباشرة (Regex) كخطة احتياطية لمن فشل JSON معه (مثل VeoVeo أحياناً)
+        // 2. استخراج الروابط المباشرة من النص (Regex) كخطة احتياطية
+        // نبحث عن m3u8, mpd, mp4 وأيضاً روابط iframe المحتملة
         const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
         regexLinks.forEach(match => {
             const link = match[0];
-            // نضيف الرابط فقط إذا لم يكن موجوداً مسبقاً
-            if(!extractedData.find(d => d.url === link || (d.url && d.url.includes(link)))) {
-                extractedData.push({ url: link, label: 'Direct Regex Link', method: 'play' });
+            // نضيف الرابط فقط إذا لم يتم استخراجه سابقاً
+            if(!extractedData.find(d => d.url === link)) {
+                extractedData.push(createLinkObj(link, 'رابط مباشر (Regex)', 'regex'));
             }
         });
 
-        // عرض النتائج للمصدر الحالي
+        // عرض النتائج
         const box = document.createElement('div');
         box.className = 'source';
         
         let linksHtml = '';
         if (extractedData.length) {
-            // إزالة التكرار
-            const unique = [...new Map(extractedData.map(item => [item.url, item])).values()];
+            // إزالة التكرار بناءً على الرابط
+            const unique = [];
+            const map = new Map();
+            for (const item of extractedData) {
+                if(!map.has(item.url)){
+                    map.set(item.url, true);
+                    unique.push(item);
+                }
+            }
             
             linksHtml = unique.map(u => {
-                let tagClass = 'tag-direct';
-                let tagText = 'تشغيل';
-                
-                // تمييز روابط التصفح
-                if (u.method === 'link' || (!u.url.includes('.m3u8') && !u.url.includes('.mp4') && !u.url.includes('.mpd'))) {
-                    tagClass = 'tag-nav';
+                // تحديد نوع الوسم (Tag)
+                let tagClass = 'tag-unknown';
+                let tagText = 'رابط';
+
+                if (u.type === 'play' || u.type === 'stream' || u.url.match(/\.(m3u8|mpd|mp4)/)) {
+                    tagClass = 'tag-play';
+                    tagText = 'تشغيل';
+                } else if (u.type === 'link' || u.type === 'url') {
+                    tagClass = 'tag-link';
                     tagText = 'تصفح';
+                } else if (u.type === 'iframe') {
+                    tagClass = 'tag-iframe';
+                    tagText = 'تضمين';
                 }
 
                 return `
                 <div class="link-item">
-                    <span class="tag ${tagClass}">${tagText}</span>
-                    <strong>${u.label}:</strong><br>
-                    <a href="${u.url}" target="_blank">${u.url}</a>
+                    <div class="link-info">
+                        <div>
+                            <span class="tag ${tagClass}">${tagText}</span>
+                            <strong>${u.label}</strong>
+                        </div>
+                        <a href="${u.url}" target="_blank">${u.url}</a>
+                    </div>
                 </div>`;
             }).join('');
         } else {
-            linksHtml = '<div style="color:red">لا توجد روابط مباشرة (قد يكون المحتوى محمياً).</div>';
+            linksHtml = '<div style="color:#777; padding:10px;">لم يتم العثور على روابط، لكن المصدر قد يعمل داخل المتصفح.</div>';
         }
 
-        box.innerHTML = `<h3>${s.name} <small>(${extractedData.length})</small></h3>${linksHtml}`;
+        box.innerHTML = `<h3>${s.name} <small>(${extractedData.length})</small></h3><div class="link-group">${linksHtml}</div>`;
         outputDiv.appendChild(box);
       }
 
   } catch (e) {
       loader.style.display = 'none';
-      outputDiv.innerHTML = `<div class="source" style="border-color:red; color:red;">حدث خطأ: ${e.message}</div>`;
+      outputDiv.innerHTML = `<div class="error-msg">حدث خطأ: ${e.message}</div>`;
   }
+}
+
+// دالة مساعدة لتوحيد شكل كائن الرابط
+function createLinkObj(url, label, type) {
+    // تنظيف الرابط في حال وجود " or " (شائع في بعض المصادر مثل Filmix)
+    if(url.includes(" or ")) {
+        url = url.split(" or ")[0].trim();
+    }
+    return { url: url, label: label, type: type };
 }
 </script>
 
