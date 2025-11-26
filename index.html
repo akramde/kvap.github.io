@@ -45,29 +45,19 @@ async function start(){
     const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
     const html = await (await fetch(infoUrl)).text();
 
-    // استخراج كل data-json
     const matches = [...html.matchAll(/data-json=\"([^\"]+)\"/g)];
 
-    // استخراج رابط الفيديو من داخل json
     const urls = matches.map(m => {
       try{
         const txt = m[1].replace(/&quot;/g,'"');
         const obj = JSON.parse(txt);
         return obj.url || null;
       }catch(e){ return null; }
-    }).filter(Boolean);
-(/data-json="([^"]+)"/g)];
-
-    const urls = matches.map(m => {
-      try{
-        const obj = JSON.parse(m[1].replace(/&quot;/g,'"'));
-        return obj.url;
-      }catch(e){ return null; }
-    }).filter(Boolean);
+    }).filter(u => u);
 
     const box = document.createElement('div');
     box.className = 'source';
-    box.innerHTML = `<h3>${s.name}</h3>` + urls.map(u => `<div>${u}</div>`).join('');
+    box.innerHTML = `<h3>${s.name}</h3>` + (urls.length ? urls.map(u => `<div>${u}</div>`).join('') : '<div>لا توجد روابط</div>');
 
     resultDiv.appendChild(box);
   }
