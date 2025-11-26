@@ -2,21 +2,36 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8" />
-<title>Video Fetcher</title>
+<title>Video Fetcher Pro</title>
 <style>
-body { font-family: sans-serif; direction: rtl; }
-.source { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background-color: #f4f4f9; padding: 20px; }
+    h2 { color: #333; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+    button { margin-top: 20px; padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+    button:hover { background-color: #218838; }
+    .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
+    .source h3 { margin-top: 0; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    .link-item { margin-bottom: 8px; padding: 8px; background: #f9f9f9; border-radius: 3px; border: 1px solid #eee; word-break: break-all; }
+    .link-item a { text-decoration: none; color: #333; font-weight: bold; }
+    .tag { display: inline-block; padding: 2px 6px; font-size: 12px; border-radius: 3px; margin-right: 5px; color: white; }
+    .tag-direct { background-color: #28a745; } /* أخضر للمباشر */
+    .tag-nav { background-color: #ffc107; color: #333; } /* أصفر للتصفح */
+    .loader { display: none; color: #666; margin-top: 10px; }
 </style>
 </head>
 <body>
-<h2>استخراج روابط المشغلات</h2>
 
-<label>ID: <input id="id" /></label><br>
-<label>IMDB ID: <input id="imdb" /></label><br>
-<label>الاسم: <input id="title" /></label><br>
-<label>السنة: <input id="year" /></label><br>
-<button onclick="start()">ابدأ</button>
+<h2>استخراج روابط المشغلات الشامل</h2>
 
+<label>ID: <input id="id" value="464475" /></label>
+<label>IMDB ID: <input id="imdb" value="tt0021884" /></label>
+<label>الاسم: <input id="title" value="Frankenstein" /></label>
+<label>السنة: <input id="year" value="1931" /></label>
+
+<button type="button" onclick="start()">ابدأ البحث</button>
+
+<div id="loader" class="loader">جاري الاتصال بالسيرفر وجلب الروابط، يرجى الانتظار...</div>
 <div id="output"></div>
 
 <script>
@@ -25,99 +40,144 @@ async function start(){
   const imdb = document.getElementById('imdb').value;
   const title = encodeURIComponent(document.getElementById('title').value);
   const year = document.getElementById('year').value;
+  const outputDiv = document.getElementById('output');
+  const loader = document.getElementById('loader');
+
+  // تنظيف النتائج السابقة وإظهار التحميل فوراً
+  outputDiv.innerHTML = '';
+  loader.style.display = 'block';
 
   const base = `https://lam.maxvol.pro/lite/events?life=true&id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
 
-  const resultDiv = document.getElementById('output');
-  resultDiv.innerHTML = 'جاري البحث...';
-
   try {
+      // 1. الحصول على memkey
       const res = await fetch(base);
       const j1 = await res.json();
+      
+      if(!j1.memkey) {
+          throw new Error("لم يتم العثور على memkey، قد يكون السيرفر مشغولاً.");
+      }
       const memkey = j1.memkey;
 
+      // 2. الحصول على قائمة المصادر
       const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${memkey}`;
       const res2 = await fetch(lifeUrl);
       const j2 = await res2.json();
 
       const sources = j2.online.filter(s => s.show);
-      resultDiv.innerHTML = '';
+      
+      if(sources.length === 0) {
+          outputDiv.innerHTML = '<div class="source">لا توجد مصادر متاحة لهذا الفيلم.</div>';
+          loader.style.display = 'none';
+          return;
+      }
 
-      for(const s of sources){
+      // 3. جلب الروابط من كل مصدر
+      // نستخدم Promise.all لتسريع العملية (جلب الكل في وقت واحد)
+      const promises = sources.map(async (s) => {
         const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
         
         try {
             const html = await (await fetch(infoUrl)).text();
+            return { source: s, html: html };
+        } catch (e) {
+            return { source: s, error: e.message };
+        }
+      });
 
-            // استخدام DOMParser بدلاً من Regex لضمان الدقة
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const items = doc.querySelectorAll('[data-json]');
-            
-            const extractedUrls = [];
+      const results = await Promise.all(promises);
+      loader.style.display = 'none'; // إخفاء التحميل
 
-            items.forEach(item => {
-                try {
-                    const jsonStr = item.getAttribute('data-json');
+      // معالجة النتائج
+      const parser = new DOMParser();
+
+      for(const item of results){
+        if(item.error) continue;
+
+        const s = item.source;
+        const html = item.html;
+        const doc = parser.parseFromString(html, 'text/html');
+        const elements = doc.querySelectorAll('[data-json]');
+        
+        const extractedData = [];
+
+        // أ: استخراج البيانات المنظمة (JSON)
+        elements.forEach(el => {
+            try {
+                let jsonStr = el.getAttribute('data-json');
+                // تصحيح تنسيق JSON إذا كان يحتوي على أخطاء شائعة في HTML
+                if(jsonStr) {
+                    // استبدال &quot; بـ "
+                    jsonStr = jsonStr.replace(/&quot;/g, '"'); 
                     const obj = JSON.parse(jsonStr);
                     
-                    // تجميع الروابط الممكنة
-                    if(obj.url) extractedUrls.push({link: obj.url, type: 'url', method: obj.method, title: obj.title || 'Unknown'});
-                    if(obj.stream) extractedUrls.push({link: obj.stream, type: 'stream', method: obj.method, title: obj.title || 'Unknown'});
+                    // تحديد الاسم
+                    let label = obj.title || obj.translate || 'Unknown';
+                    if (obj.voice_name) label += ` (${obj.voice_name})`;
+
+                    // إضافة الروابط
+                    if(obj.url) extractedData.push({ url: obj.url, label: label, method: obj.method });
+                    if(obj.stream) extractedData.push({ url: obj.stream, label: label + ' (Stream)', method: obj.method });
                     
-                    // استخراج الجودات المختلفة إن وجدت
+                    // استخراج الجودات
                     if(obj.quality) {
-                        Object.values(obj.quality).forEach(qLink => {
-                             extractedUrls.push({link: qLink, type: 'quality', method: obj.method, title: obj.title || 'Unknown'});
+                        Object.keys(obj.quality).forEach(q => {
+                            extractedData.push({ url: obj.quality[q], label: `${label} [${q}]`, method: obj.method });
                         });
                     }
-
-                } catch(e) { console.error('JSON Parse Error', e); }
-            });
-
-            // 3) محاولة إيجاد روابط mpd/m3u8 مباشرة من النص (احتياطي)
-            const directLinks = [...html.matchAll(/https?:\/\/[^"'<> ]+\.(mpd|m3u8|mp4)/g)].map(m => m[0]);
-            directLinks.forEach(l => extractedUrls.push({link: l, type: 'regex', title: 'Direct Regex'}));
-
-            // إنشاء واجهة العرض
-            const box = document.createElement('div');
-            box.className = 'source';
-            
-            let linksHtml = '';
-            if (extractedUrls.length) {
-                // فلترة التكرار
-                const unique = [...new Map(extractedUrls.map(item => [item.link, item])).values()];
-                
-                linksHtml = unique.map(u => {
-                    let color = 'black';
-                    let note = '';
-                    
-                    // تمييز الروابط التي تحتاج تصفح إضافي
-                    if (u.method === 'link') {
-                        color = 'orange';
-                        note = ' (رابط تصفح - يحتاج فتح)';
-                    } else if (u.link.includes('.m3u8') || u.link.includes('.mpd')) {
-                        color = 'green';
-                        note = ' (فيديو مباشر)';
-                    }
-
-                    return `<div style="color:${color}; margin-bottom: 5px; word-break: break-all;">
-                                <strong>${u.title}:</strong> <a href="${u.link}" target="_blank">${u.link}</a> ${note}
-                            </div>`;
-                }).join('');
-            } else {
-                linksHtml = '<div>لا توجد روابط مباشرة (قد يكون المحتوى محمياً أو يحتاج تفاعل JS)</div>';
+                }
+            } catch(e) { 
+                // فشل تحليل JSON، نتجاهله هنا لأن Regex سيلتقطه
             }
+        });
 
-            box.innerHTML = `<h3>${s.name} (${extractedUrls.length})</h3>${linksHtml}`;
-            resultDiv.appendChild(box);
+        // ب: استخراج الروابط المباشرة (Regex) كخطة احتياطية لمن فشل JSON معه (مثل VeoVeo أحياناً)
+        const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
+        regexLinks.forEach(match => {
+            const link = match[0];
+            // نضيف الرابط فقط إذا لم يكن موجوداً مسبقاً
+            if(!extractedData.find(d => d.url === link || (d.url && d.url.includes(link)))) {
+                extractedData.push({ url: link, label: 'Direct Regex Link', method: 'play' });
+            }
+        });
 
-        } catch (fetchErr) {
-            console.error(fetchErr);
+        // عرض النتائج للمصدر الحالي
+        const box = document.createElement('div');
+        box.className = 'source';
+        
+        let linksHtml = '';
+        if (extractedData.length) {
+            // إزالة التكرار
+            const unique = [...new Map(extractedData.map(item => [item.url, item])).values()];
+            
+            linksHtml = unique.map(u => {
+                let tagClass = 'tag-direct';
+                let tagText = 'تشغيل';
+                
+                // تمييز روابط التصفح
+                if (u.method === 'link' || (!u.url.includes('.m3u8') && !u.url.includes('.mp4') && !u.url.includes('.mpd'))) {
+                    tagClass = 'tag-nav';
+                    tagText = 'تصفح';
+                }
+
+                return `
+                <div class="link-item">
+                    <span class="tag ${tagClass}">${tagText}</span>
+                    <strong>${u.label}:</strong><br>
+                    <a href="${u.url}" target="_blank">${u.url}</a>
+                </div>`;
+            }).join('');
+        } else {
+            linksHtml = '<div style="color:red">لا توجد روابط مباشرة (قد يكون المحتوى محمياً).</div>';
         }
+
+        box.innerHTML = `<h3>${s.name} <small>(${extractedData.length})</small></h3>${linksHtml}`;
+        outputDiv.appendChild(box);
       }
+
   } catch (e) {
-      resultDiv.innerHTML = `حدث خطأ: ${e.message}`;
+      loader.style.display = 'none';
+      outputDiv.innerHTML = `<div class="source" style="border-color:red; color:red;">حدث خطأ: ${e.message}</div>`;
   }
 }
 </script>
