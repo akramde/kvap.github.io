@@ -2,31 +2,37 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8" />
-<title>Video Fetcher Ultimate + Validator</title>
+<title>Video Fetcher Ultimate v2</title>
 <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background-color: #f4f4f9; padding: 20px; }
     h2 { color: #333; }
-    label { display: block; margin-top: 10px; font-weight: bold; }
+    .input-group { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; font-weight: bold; font-size: 14px; color: #555; }
     input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-    button { margin-top: 20px; padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
-    button:hover { background-color: #218838; }
-    .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #007bff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
-    .source h3 { margin-top: 0; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    .link-group { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 10px; }
-    .link-item { margin-bottom: 8px; padding: 10px; background: #f1f1f1; border-radius: 4px; word-break: break-all; border: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;}
-    .link-info { flex: 1; }
-    .link-item a { text-decoration: none; color: #0056b3; font-weight: bold; display: block; margin-top: 5px; }
+    button { margin-top: 20px; padding: 12px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
+    button:hover { background-color: #0056b3; }
     
-    .tag { padding: 3px 8px; font-size: 12px; border-radius: 12px; color: white; font-weight: normal; margin-left: 5px; white-space: nowrap; }
+    .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #28a745; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
+    .source h3 { margin-top: 0; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px; }
+    
+    .link-group { margin-top: 10px; }
+    .link-item { margin-bottom: 8px; padding: 10px; background: #f8f9fa; border-radius: 4px; word-break: break-all; border: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;}
+    .link-info { flex: 1; }
+    .link-item a { text-decoration: none; color: #007bff; font-weight: bold; display: block; margin-top: 5px; font-size: 14px; }
+    .link-item a:hover { text-decoration: underline; }
+
+    .tag { padding: 3px 8px; font-size: 12px; border-radius: 4px; color: white; font-weight: normal; margin-left: 5px; white-space: nowrap; display: inline-block; margin-bottom: 2px;}
     .tag-play { background-color: #28a745; } 
     .tag-link { background-color: #ffc107; color: #333; }
     .tag-iframe { background-color: #17a2b8; }
     .tag-unknown { background-color: #6c757d; } 
 
     /* Status Tags */
-    .status-checking { background-color: #ffc107; color: black; }
+    .status-checking { background-color: #ffc107; color: black; animation: blink 1s infinite; }
     .status-working { background-color: #28a745; color: white; }
     .status-broken { background-color: #dc3545; color: white; }
+
+    @keyframes blink { 50% { opacity: 0.6; } }
 
     .loader { display: none; text-align: center; margin-top: 20px; font-weight: bold; color: #555; }
     .error-msg { color: red; padding: 10px; background: #ffe6e6; border: 1px solid red; border-radius: 4px; margin-top: 10px; }
@@ -34,37 +40,47 @@
 </head>
 <body>
 
-<h2>استخراج وفحص الروابط</h2>
+<h2>استخراج وفحص الروابط (متقدم)</h2>
 
-<label>ID: <input id="id" value="464475" /></label>
-<label>IMDB ID: <input id="imdb" value="tt0021884" /></label>
-<label>الاسم: <input id="title" value="Frankenstein" /></label>
-<label>السنة: <input id="year" value="1931" /></label>
+<div class="input-group">
+    <label>ID (TMDB/Lampa ID): <input id="id" value="1309012" /></label>
+    <label>IMDB ID: <input id="imdb" value="tt32123395" /></label>
+    <label>Kinopoisk ID: <input id="kp_id" value="6638362" placeholder="مثال: 6638362" /></label>
+    <label>الاسم (Title): <input id="title" value="Альтер" /></label>
+    <label>الاسم الأصلي (Original Title): <input id="orig_title" value="Altered" /></label>
+    <label>السنة: <input id="year" value="2025" /></label>
+</div>
 
 <button type="button" onclick="start()">ابدأ البحث والفحص</button>
 
-<div id="loader" class="loader">جاري جلب المصادر...</div>
+<div id="loader" class="loader">جاري الاتصال بالمصادر...</div>
 <div id="output"></div>
 
 <script>
 async function start(){
+  // جلب القيم من الحقول الجديدة
   const id = document.getElementById('id').value;
   const imdb = document.getElementById('imdb').value;
+  const kp_id = document.getElementById('kp_id').value; // Kinopoisk ID
   const title = encodeURIComponent(document.getElementById('title').value);
+  const orig_title = encodeURIComponent(document.getElementById('orig_title').value); // Original Title
   const year = document.getElementById('year').value;
+  
   const outputDiv = document.getElementById('output');
   const loader = document.getElementById('loader');
 
   outputDiv.innerHTML = '';
   loader.style.display = 'block';
-  loader.textContent = 'جاري الاتصال بالمصادر...';
+  loader.textContent = 'جاري جلب المفتاح وقائمة المصادر...';
 
-  const base = `https://lam.maxvol.pro/lite/events?life=true&id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
+  // بناء رابط الطلب الرئيسي مع الباراميترات الجديدة
+  const base = `https://lam.maxvol.pro/lite/events?life=true&id=${id}&imdb_id=${imdb}&kinopoisk_id=${kp_id}&title=${title}&original_title=${orig_title}&year=${year}`;
 
   try {
       const res = await fetch(base);
       const j1 = await res.json();
-      if(!j1.memkey) throw new Error("No memkey found.");
+      
+      if(!j1.memkey) throw new Error("لم يتم العثور على memkey (قد يكون السيرفر مشغولاً أو الفيلم غير موجود).");
       
       const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${j1.memkey}`;
       const res2 = await fetch(lifeUrl);
@@ -73,14 +89,18 @@ async function start(){
       const sources = j2.online.filter(s => s.show);
       
       if(sources.length === 0) {
-          outputDiv.innerHTML = '<div class="error-msg">لا توجد مصادر.</div>';
+          outputDiv.innerHTML = '<div class="error-msg">لا توجد مصادر متاحة لهذا العنوان.</div>';
           loader.style.display = 'none';
           return;
       }
 
-      // Fetch all sources
+      loader.textContent = `جاري جلب الروابط من ${sources.length} مصدر...`;
+
+      // جلب الروابط من كل مصدر
       const promises = sources.map(async (s) => {
-        const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
+        // بناء رابط المصدر مع إضافة kinopoisk_id و original_title
+        const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&kinopoisk_id=${kp_id}&title=${title}&original_title=${orig_title}&year=${year}`;
+        
         try {
             const response = await fetch(infoUrl);
             const html = await response.text();
@@ -95,7 +115,7 @@ async function start(){
 
       const parser = new DOMParser();
 
-      // Process results
+      // معالجة النتائج
       for(const item of results){
         if(item.error) continue;
 
@@ -106,19 +126,23 @@ async function start(){
         
         let extractedData = [];
 
-        // Extraction Logic
+        // استخراج JSON
         elements.forEach(el => {
             try {
                 let jsonStr = el.getAttribute('data-json');
                 if(jsonStr) {
                     jsonStr = jsonStr.replace(/&quot;/g, '"');
                     const obj = JSON.parse(jsonStr);
-                    let label = obj.title || obj.translate || obj.name || 'بدون عنوان';
+                    
+                    // تحسين التسمية
+                    let label = obj.title || obj.translate || obj.name || 'ملف فيديو';
                     if (obj.voice_name) label += ` (${obj.voice_name})`;
+                    if (obj.maxquality) label += ` [${obj.maxquality}]`;
                     
                     if(obj.url) extractedData.push(createLinkObj(obj.url, label, obj.method || 'url'));
                     if(obj.stream) extractedData.push(createLinkObj(obj.stream, label + ' (Stream)', 'stream'));
                     if(obj.iframe) extractedData.push(createLinkObj(obj.iframe, label + ' (Iframe)', 'iframe'));
+                    
                     if(obj.quality && typeof obj.quality === 'object') {
                         Object.keys(obj.quality).forEach(q => {
                             extractedData.push(createLinkObj(obj.quality[q], `${label} [${q}]`, 'quality'));
@@ -128,6 +152,7 @@ async function start(){
             } catch(e) {}
         });
 
+        // استخراج Regex (احتياطي)
         const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
         regexLinks.forEach(match => {
             if(!extractedData.find(d => d.url === match[0])) {
@@ -135,7 +160,7 @@ async function start(){
             }
         });
 
-        // Remove duplicates
+        // إزالة التكرار
         const uniqueData = [];
         const map = new Map();
         for (const item of extractedData) {
@@ -145,33 +170,37 @@ async function start(){
             }
         }
 
-        // Generate HTML
+        // عرض النتائج
         const box = document.createElement('div');
         box.className = 'source';
         
         let linksHtml = uniqueData.map((u, index) => {
             let tagClass = 'tag-unknown';
             let tagText = 'رابط';
-            if (u.type === 'play' || u.type === 'stream' || u.url.match(/\.(m3u8|mpd|mp4)/)) {
+            let shouldCheck = false;
+
+            if (u.type === 'play' || u.type === 'stream' || u.type === 'quality' || u.type === 'regex' || u.url.match(/\.(m3u8|mpd|mp4)/)) {
                 tagClass = 'tag-play'; tagText = 'تشغيل';
-            } else if (u.type === 'link') {
+                shouldCheck = true;
+            } else if (u.type === 'link' || u.type === 'url') {
                 tagClass = 'tag-link'; tagText = 'تصفح';
+            } else if (u.type === 'iframe') {
+                tagClass = 'tag-iframe'; tagText = 'تضمين';
             }
 
-            // Unique ID for checking
             const linkId = `link-${s.balanser}-${index}`;
 
-            // If it's a direct video link, trigger check immediately
-            if(tagText === 'تشغيل') {
+            // بدء الفحص فوراً
+            if(shouldCheck) {
                 checkLink(u.url, linkId);
             }
 
             return `
-            <div class="link-item" id="container-${linkId}">
+            <div class="link-item">
                 <div class="link-info">
-                    <div>
+                    <div style="margin-bottom:4px;">
                         <span class="tag ${tagClass}">${tagText}</span>
-                        <span id="status-${linkId}" class="tag status-checking" style="display:${tagText==='تشغيل'?'inline-block':'none'}">جاري الفحص...</span>
+                        <span id="status-${linkId}" class="tag status-checking" style="display:${shouldCheck?'inline-block':'none'}">جاري الفحص...</span>
                         <strong>${u.label}</strong>
                     </div>
                     <a href="${u.url}" target="_blank">${u.url}</a>
@@ -179,7 +208,7 @@ async function start(){
             </div>`;
         }).join('');
 
-        if(uniqueData.length === 0) linksHtml = '<div style="padding:10px; color:#777">لا روابط.</div>';
+        if(uniqueData.length === 0) linksHtml = '<div style="padding:10px; color:#777">لم يتم العثور على روابط مباشرة داخل هذا المصدر.</div>';
 
         box.innerHTML = `<h3>${s.name} <small>(${uniqueData.length})</small></h3><div class="link-group">${linksHtml}</div>`;
         outputDiv.appendChild(box);
@@ -196,36 +225,29 @@ function createLinkObj(url, label, type) {
     return { url: url, label: label, type: type };
 }
 
-// Function to check if a link is working
+// دالة الفحص (CORS Friendly Check)
 async function checkLink(url, elementId) {
     const statusSpan = document.getElementById(`status-${elementId}`);
     if(!statusSpan) return;
 
     try {
-        // Note: Because of CORS (security policy), we can't fully verify external video links 
-        // purely from client-side JS without a proxy.
-        // However, we can try a fetch. If it fails due to CORS, it usually means the server exists 
-        // but blocks browser requests (which often implies the link is technically 'alive').
-        // If it returns 404, it's dead.
-        
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 7000); // مهلة 7 ثواني
 
         const response = await fetch(url, { 
             method: 'HEAD', 
-            mode: 'no-cors', // Important for external video links
+            mode: 'no-cors', 
             signal: controller.signal 
         });
         
         clearTimeout(timeoutId);
 
-        // With no-cors, we get an opaque response. We assume it's working if no network error.
-        statusSpan.textContent = "يعمل (Active)";
+        // في وضع no-cors، الاستجابة تكون opaque ولكن عدم حدوث خطأ يعني أن السيرفر موجود
+        statusSpan.textContent = "متاح / يعمل";
         statusSpan.className = "tag status-working";
 
     } catch (error) {
-        console.error(error);
-        statusSpan.textContent = "لا يعمل / محظور";
+        statusSpan.textContent = "لا يعمل / مهلة";
         statusSpan.className = "tag status-broken";
     }
 }
