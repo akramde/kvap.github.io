@@ -45,15 +45,37 @@ async function start(){
     const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
     const html = await (await fetch(infoUrl)).text();
 
-    const matches = [...html.matchAll(/data-json=\"([^\"]+)\"/g)];
+    // استخراج شامل لكل JSON حتى لو كان متعدد الأسطر أو داخل سكربت
+    const jsonBlocks = [];
 
-    const urls = matches.map(m => {
+    // 1) التقاط data-json
+    const direct = [...html.matchAll(/data-json=\"([\s\S]*?)\"/g)];
+    direct.forEach(m => jsonBlocks.push(m[1]));
+
+    // 2) التقاط JSON داخل وسوم <script>
+    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
+    for(const sc of scripts){
+      const inner = sc[1];
+      const scriptJson = [...inner.matchAll(/\{[\s\S]*?\}/g)];
+      scriptJson.forEach(j => jsonBlocks.push(j[0]));
+    }
+
+    // 3) محاولة إيجاد روابط mpd/m3u8 مباشرة
+    const directLinks = [...html.matchAll(/https?:\/\/[^"'<> ]+\.(mpd|m3u8)/g)].map(m => m[0]);
+
+    const urls = [];
+
+    // تحليل JSON
+    for(const block of jsonBlocks){
       try{
-        const txt = m[1].replace(/&quot;/g,'"');
-        const obj = JSON.parse(txt);
-        return obj.url || null;
-      }catch(e){ return null; }
-    }).filter(u => u);
+        const fixed = block.replace(/&quot;/g,'"');
+        const obj = JSON.parse(fixed);
+        if(obj.url) urls.push(obj.url);
+      }catch(e){/* تجاهل */}
+    }
+
+    // إضافة الروابط المباشرة
+    directLinks.forEach(l => urls.push(l));
 
     const box = document.createElement('div');
     box.className = 'source';
