@@ -45,7 +45,18 @@ async function start(){
     const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
     const html = await (await fetch(infoUrl)).text();
 
-    const matches = [...html.matchAll(/data-json="([^"]+)"/g)];
+    // استخراج كل data-json
+    const matches = [...html.matchAll(/data-json=\"([^\"]+)\"/g)];
+
+    // استخراج رابط الفيديو من داخل json
+    const urls = matches.map(m => {
+      try{
+        const txt = m[1].replace(/&quot;/g,'"');
+        const obj = JSON.parse(txt);
+        return obj.url || null;
+      }catch(e){ return null; }
+    }).filter(Boolean);
+(/data-json="([^"]+)"/g)];
 
     const urls = matches.map(m => {
       try{
