@@ -28,60 +28,96 @@ async function start(){
 
   const base = `https://lam.maxvol.pro/lite/events?life=true&id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
 
-  const res = await fetch(base);
-  const j1 = await res.json();
-  const memkey = j1.memkey;
-
-  const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${memkey}`;
-  const res2 = await fetch(lifeUrl);
-  const j2 = await res2.json();
-
-  const sources = j2.online.filter(s => s.show);
-
   const resultDiv = document.getElementById('output');
-  resultDiv.innerHTML = '';
+  resultDiv.innerHTML = 'جاري البحث...';
 
-  for(const s of sources){
-    const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
-    const html = await (await fetch(infoUrl)).text();
+  try {
+      const res = await fetch(base);
+      const j1 = await res.json();
+      const memkey = j1.memkey;
 
-    // استخراج شامل لكل JSON حتى لو كان متعدد الأسطر أو داخل سكربت
-    const jsonBlocks = [];
+      const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${memkey}`;
+      const res2 = await fetch(lifeUrl);
+      const j2 = await res2.json();
 
-    // 1) التقاط data-json
-    const direct = [...html.matchAll(/data-json=\"([\s\S]*?)\"/g)];
-    direct.forEach(m => jsonBlocks.push(m[1]));
+      const sources = j2.online.filter(s => s.show);
+      resultDiv.innerHTML = '';
 
-    // 2) التقاط JSON داخل وسوم <script>
-    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
-    for(const sc of scripts){
-      const inner = sc[1];
-      const scriptJson = [...inner.matchAll(/\{[\s\S]*?\}/g)];
-      scriptJson.forEach(j => jsonBlocks.push(j[0]));
-    }
+      for(const s of sources){
+        const infoUrl = `${s.url}?id=${id}&imdb_id=${imdb}&title=${title}&original_title=${title}&year=${year}`;
+        
+        try {
+            const html = await (await fetch(infoUrl)).text();
 
-    // 3) محاولة إيجاد روابط mpd/m3u8 مباشرة
-    const directLinks = [...html.matchAll(/https?:\/\/[^"'<> ]+\.(mpd|m3u8)/g)].map(m => m[0]);
+            // استخدام DOMParser بدلاً من Regex لضمان الدقة
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const items = doc.querySelectorAll('[data-json]');
+            
+            const extractedUrls = [];
 
-    const urls = [];
+            items.forEach(item => {
+                try {
+                    const jsonStr = item.getAttribute('data-json');
+                    const obj = JSON.parse(jsonStr);
+                    
+                    // تجميع الروابط الممكنة
+                    if(obj.url) extractedUrls.push({link: obj.url, type: 'url', method: obj.method, title: obj.title || 'Unknown'});
+                    if(obj.stream) extractedUrls.push({link: obj.stream, type: 'stream', method: obj.method, title: obj.title || 'Unknown'});
+                    
+                    // استخراج الجودات المختلفة إن وجدت
+                    if(obj.quality) {
+                        Object.values(obj.quality).forEach(qLink => {
+                             extractedUrls.push({link: qLink, type: 'quality', method: obj.method, title: obj.title || 'Unknown'});
+                        });
+                    }
 
-    // تحليل JSON
-    for(const block of jsonBlocks){
-      try{
-        const fixed = block.replace(/&quot;/g,'"');
-        const obj = JSON.parse(fixed);
-        if(obj.url) urls.push(obj.url);
-      }catch(e){/* تجاهل */}
-    }
+                } catch(e) { console.error('JSON Parse Error', e); }
+            });
 
-    // إضافة الروابط المباشرة
-    directLinks.forEach(l => urls.push(l));
+            // 3) محاولة إيجاد روابط mpd/m3u8 مباشرة من النص (احتياطي)
+            const directLinks = [...html.matchAll(/https?:\/\/[^"'<> ]+\.(mpd|m3u8|mp4)/g)].map(m => m[0]);
+            directLinks.forEach(l => extractedUrls.push({link: l, type: 'regex', title: 'Direct Regex'}));
 
-    const box = document.createElement('div');
-    box.className = 'source';
-    box.innerHTML = `<h3>${s.name}</h3>` + (urls.length ? urls.map(u => `<div>${u}</div>`).join('') : '<div>لا توجد روابط</div>');
+            // إنشاء واجهة العرض
+            const box = document.createElement('div');
+            box.className = 'source';
+            
+            let linksHtml = '';
+            if (extractedUrls.length) {
+                // فلترة التكرار
+                const unique = [...new Map(extractedUrls.map(item => [item.link, item])).values()];
+                
+                linksHtml = unique.map(u => {
+                    let color = 'black';
+                    let note = '';
+                    
+                    // تمييز الروابط التي تحتاج تصفح إضافي
+                    if (u.method === 'link') {
+                        color = 'orange';
+                        note = ' (رابط تصفح - يحتاج فتح)';
+                    } else if (u.link.includes('.m3u8') || u.link.includes('.mpd')) {
+                        color = 'green';
+                        note = ' (فيديو مباشر)';
+                    }
 
-    resultDiv.appendChild(box);
+                    return `<div style="color:${color}; margin-bottom: 5px; word-break: break-all;">
+                                <strong>${u.title}:</strong> <a href="${u.link}" target="_blank">${u.link}</a> ${note}
+                            </div>`;
+                }).join('');
+            } else {
+                linksHtml = '<div>لا توجد روابط مباشرة (قد يكون المحتوى محمياً أو يحتاج تفاعل JS)</div>';
+            }
+
+            box.innerHTML = `<h3>${s.name} (${extractedUrls.length})</h3>${linksHtml}`;
+            resultDiv.appendChild(box);
+
+        } catch (fetchErr) {
+            console.error(fetchErr);
+        }
+      }
+  } catch (e) {
+      resultDiv.innerHTML = `حدث خطأ: ${e.message}`;
   }
 }
 </script>
