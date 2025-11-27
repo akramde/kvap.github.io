@@ -2,46 +2,41 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8" />
-<title>Video Link Validator</title>
+<title>Video Fetcher - Smart Crawler</title>
 <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background-color: #f4f4f9; padding: 20px; }
-    h2 { color: #333; }
     .input-group { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
     label { display: block; margin-top: 10px; font-weight: bold; font-size: 14px; color: #555; }
     input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-    button { margin-top: 20px; padding: 12px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
-    button:hover { background-color: #0056b3; }
+    button { margin-top: 20px; padding: 12px 20px; background-color: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
+    button:hover { background-color: #59359a; }
     
     .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #28a745; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
-    .source h3 { margin-top: 0; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px; }
+    .source h3 { margin-top: 0; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 10px; }
     
-    .link-item { margin-bottom: 8px; padding: 10px; background: #f8f9fa; border-radius: 4px; word-break: break-all; border: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;}
-    .link-info { flex: 1; }
-    .link-item a { text-decoration: none; color: #007bff; font-weight: bold; display: block; margin-top: 5px; font-size: 14px; }
+    .link-item { margin-bottom: 8px; padding: 10px; background: #f8f9fa; border-radius: 4px; border: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;}
+    .link-info { flex: 1; word-break: break-all; }
+    .link-item a { text-decoration: none; color: #007bff; font-weight: bold; display: block; margin-top: 5px; font-size: 13px; }
     
-    /* Tags Colors */
-    .tag { padding: 3px 8px; font-size: 12px; border-radius: 4px; color: white; font-weight: normal; margin-left: 5px; display: inline-block; margin-bottom: 2px;}
-    .tag-video { background-color: #28a745; } /* فيديو مؤكد */
-    .tag-sub { background-color: #17a2b8; } 
-    .tag-other { background-color: #6c757d; } 
+    .tag { padding: 3px 8px; font-size: 11px; border-radius: 4px; color: white; font-weight: normal; margin-left: 5px; display: inline-block;}
+    .tag-video { background-color: #28a745; }
+    .tag-page { background-color: #fd7e14; }
+    .tag-sub { background-color: #17a2b8; }
     
-    /* Status */
-    .status-checking { background-color: #ffc107; color: black; animation: blink 1s infinite; }
-    .status-valid { background-color: #198754; color: white; } /* صالح */
-    .status-invalid { background-color: #dc3545; color: white; } /* غير صالح */
+    .status { font-size: 11px; padding: 2px 6px; border-radius: 4px; color: white; margin-right: 5px; }
+    .st-wait { background-color: #999; }
+    .st-ok { background-color: #198754; }
+    .st-err { background-color: #dc3545; }
 
-    @keyframes blink { 50% { opacity: 0.6; } }
-
-    .loader { display: none; text-align: center; margin-top: 20px; font-weight: bold; color: #555; }
-    .loader-detail { font-size: 12px; color: #888; display: block; margin-top: 5px; }
+    .loader { display: none; text-align: center; margin-top: 20px; color: #555; }
 </style>
 </head>
 <body>
 
-<h2>مدقق روابط الفيديو (بدون تشغيل)</h2>
+<h2>المستخرج الذكي (بدون تحميل خلفي)</h2>
 
 <div class="input-group">
-    <label>ID (TMDB/Lampa): <input id="id" value="1309012" /></label>
+    <label>ID: <input id="id" value="1309012" /></label>
     <label>IMDB ID: <input id="imdb" value="tt32123395" /></label>
     <label>Kinopoisk ID: <input id="kp_id" value="6638362" /></label>
     <label>الاسم: <input id="title" value="Альтер" /></label>
@@ -49,18 +44,15 @@
     <label>السنة: <input id="year" value="2025" /></label>
 </div>
 
-<button type="button" onclick="startValidator()">استخراج والتحقق من صلاحية الروابط</button>
+<button type="button" onclick="startProcess()">بدء العملية</button>
 
-<div id="loader" class="loader">
-    جاري المعالجة...
-    <span id="loader-text" class="loader-detail"></span>
-</div>
+<div id="loader" class="loader">جاري العمل... <span id="status-text"></span></div>
 <div id="output"></div>
 
 <script>
 const parser = new DOMParser();
 
-async function startValidator(){
+async function startProcess(){
   const params = {
       id: document.getElementById('id').value,
       imdb: document.getElementById('imdb').value,
@@ -72,19 +64,18 @@ async function startValidator(){
   
   const outputDiv = document.getElementById('output');
   const loader = document.getElementById('loader');
-  const loaderText = document.getElementById('loader-text');
+  const statusText = document.getElementById('status-text');
 
   outputDiv.innerHTML = '';
   loader.style.display = 'block';
-  loaderText.textContent = 'جاري جلب المصادر...';
+  statusText.textContent = 'جلب المصادر...';
 
   const base = `https://lam.maxvol.pro/lite/events?life=true&id=${params.id}&imdb_id=${params.imdb}&kinopoisk_id=${params.kp_id}&title=${params.title}&original_title=${params.orig_title}&year=${params.year}`;
 
   try {
       const res = await fetch(base);
       const j1 = await res.json();
-      
-      if(!j1.memkey) throw new Error("لم يتم العثور على مفتاح memkey.");
+      if(!j1.memkey) throw new Error("No memkey");
       
       const lifeUrl = `https://lam.maxvol.pro/lifeevents?memkey=${j1.memkey}`;
       const res2 = await fetch(lifeUrl);
@@ -94,18 +85,20 @@ async function startValidator(){
       
       if(sources.length === 0) {
           loader.style.display = 'none';
-          outputDiv.innerHTML = '<div style="padding:20px; color:red">لا توجد مصادر.</div>';
+          outputDiv.innerHTML = '<div style="color:red">لا توجد مصادر.</div>';
           return;
       }
 
-      loaderText.textContent = `تم العثور على ${sources.length} مصدر. جاري الفحص...`;
+      statusText.textContent = `فحص ${sources.length} مصدر...`;
 
-      // معالجة كل مصدر
+      // معالجة المصادر بالتوالي أو التوازي
       const promises = sources.map(async (s) => {
         const infoUrl = `${s.url}?id=${params.id}&imdb_id=${params.imdb}&kinopoisk_id=${params.kp_id}&title=${params.title}&original_title=${params.orig_title}&year=${params.year}`;
+        
         try {
-            const allLinks = await crawlLink(infoUrl, s.name, 0);
-            return { source: s, links: allLinks };
+            // هنا يبدأ السحر: دالة processUrl تقرر هل تفتح الرابط أم لا
+            const items = await processUrl(infoUrl, s.name, 0);
+            return { source: s, items: items };
         } catch (e) {
             return { source: s, error: e.message };
         }
@@ -113,94 +106,122 @@ async function startValidator(){
 
       const results = await Promise.all(promises);
       loader.style.display = 'none';
-
       renderResults(results, outputDiv);
 
   } catch (e) {
       loader.style.display = 'none';
-      outputDiv.innerHTML = `<div style="padding:20px; color:red">حدث خطأ: ${e.message}</div>`;
+      outputDiv.innerHTML = `<div style="color:red">خطأ: ${e.message}</div>`;
   }
 }
 
-// دالة الزحف واستخراج الروابط
-async function crawlLink(url, sourceName, depth) {
-    if(depth > 2) return []; 
+/**
+ * الدالة الذكية: تقرر هل الرابط فيديو (للعرض فقط) أم صفحة (للفتح والاستخراج)
+ */
+async function processUrl(url, sourceName, depth) {
+    if (depth > 2) return [];
+
+    // 1. الفحص السريع بالامتداد (Static Check)
+    if (isVideoExtension(url)) {
+        return [createItem(url, "فيديو مباشر (من الامتداد)", "video")];
+    }
 
     try {
-        const response = await fetch(url);
+        // 2. الفحص عبر الشبكة (HEAD Request) للتأكد من النوع دون التحميل
+        // نستخدم AbortController لقطع الاتصال بسرعة إذا تأخر
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 ثواني مهلة
+
+        // نحاول جلب المحتوى. إذا كان المصدر Lite/JSON، عادة يرجع نص بسرعة.
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        // التحقق من نوع المحتوى قبل قراءة النص
+        const contentType = response.headers.get("content-type");
+        
+        // إذا كان السيرفر يقول أن هذا فيديو، توقف فوراً ولا تقرأ النص!
+        if (contentType && (contentType.includes("video") || contentType.includes("mpegurl") || contentType.includes("octet-stream"))) {
+            return [createItem(url, "فيديو (تم كشفه من الهيدر)", "video")];
+        }
+
+        // إذا وصلنا هنا، فالرابط غالبًا JSON أو HTML، يمكننا قراءته بأمان
         const html = await response.text();
         const doc = parser.parseFromString(html, 'text/html');
         const elements = doc.querySelectorAll('[data-json]');
         
-        let extractedItems = [];
-        let navigationLinks = [];
+        let extracted = [];
+        let subLinks = []; // روابط للصفحات الفرعية
 
+        // إذا لم نجد عناصر data-json وكان النص يحتوي على روابط فيديو مباشرة (Regex)
+        // هذا يعني أننا ربما فتحنا قائمة تشغيل m3u8 كنص بالخطأ، أو صفحة بسيطة
+        if (elements.length === 0) {
+             const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
+             if (regexLinks.length > 0) {
+                 regexLinks.forEach(m => extracted.push(createItem(m[0], "رابط Regex", "video")));
+                 return extracted; // انتهينا
+             }
+        }
+
+        // تحليل JSON المستخرج
         elements.forEach(el => {
             try {
                 let jsonStr = el.getAttribute('data-json');
                 if(!jsonStr) return;
-                
                 jsonStr = jsonStr.replace(/&quot;/g, '"');
                 const obj = JSON.parse(jsonStr);
                 
-                let label = obj.title || obj.translate || obj.name || 'ملف';
-                if (obj.voice_name) label += ` (${obj.voice_name})`;
-                if (obj.maxquality) label += ` [${obj.maxquality}]`;
+                let label = obj.title || obj.translate || 'ملف';
+                if(obj.voice_name) label += ` (${obj.voice_name})`;
+                if(obj.maxquality) label += ` [${obj.maxquality}]`;
 
-                // تصنيف الروابط
-                if(obj.url) {
-                    if (isVideoExtension(obj.url)) {
-                        extractedItems.push(createItem(obj.url, label, 'video'));
-                    } else {
-                        // رابط تصفح
-                        navigationLinks.push(obj.url);
+                // دالة مساعدة لإضافة الرابط المناسب
+                const handleLink = (linkUrl, linkLabel, typeOverride) => {
+                    if (!linkUrl) return;
+                    
+                    // إذا كان رابط فيديو صريح
+                    if (isVideoExtension(linkUrl) || typeOverride === 'video') {
+                        extracted.push(createItem(linkUrl, linkLabel, "video"));
+                    } 
+                    // إذا كان رابط تصفح (مجلد/موسم)
+                    else {
+                        // نضيفه لقائمة الروابط التي سنفتحها لاحقاً
+                        subLinks.push({ url: linkUrl, label: linkLabel });
                     }
-                }
+                };
 
-                if(obj.stream) extractedItems.push(createItem(obj.stream, label + ' (Stream)', 'video'));
+                // فحص الحقول
+                if (obj.url) handleLink(obj.url, label);
+                if (obj.stream) handleLink(obj.stream, label, "video"); // stream غالبا فيديو
                 
-                if(obj.quality && typeof obj.quality === 'object') {
-                    Object.keys(obj.quality).forEach(q => {
-                        extractedItems.push(createItem(obj.quality[q], `${label} [${q}]`, 'video'));
-                    });
+                if (obj.quality) {
+                    Object.keys(obj.quality).forEach(q => handleLink(obj.quality[q], `${label} [${q}]`, "video"));
                 }
-
-                if(obj.subtitles && Array.isArray(obj.subtitles)) {
-                    obj.subtitles.forEach(sub => {
-                        extractedItems.push(createItem(sub.url, `ترجمة: ${sub.label || 'Unknown'}`, 'subtitle'));
-                    });
+                
+                if (obj.subtitles) {
+                    obj.subtitles.forEach(s => extracted.push(createItem(s.url, `ترجمة: ${s.label}`, "subtitle")));
                 }
 
             } catch(e) {}
         });
 
-        // فتح الروابط الفرعية
-        if(navigationLinks.length > 0) {
-            const nestedPromises = navigationLinks.map(link => crawlLink(link, sourceName, depth + 1));
-            const nestedResults = await Promise.all(nestedPromises);
-            nestedResults.forEach(res => extractedItems = extractedItems.concat(res));
+        // 3. التكرار (Recursion): فتح روابط التصفح التي وجدناها
+        if (subLinks.length > 0) {
+            const promises = subLinks.map(sub => processUrl(sub.url, sourceName, depth + 1));
+            const subResults = await Promise.all(promises);
+            subResults.forEach(res => extracted = extracted.concat(res));
         }
 
-        // Regex Fallback
-        if(depth === 0) {
-            const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
-            regexLinks.forEach(match => {
-                if(!extractedItems.find(d => d.url === match[0])) {
-                    extractedItems.push(createItem(match[0], 'رابط مباشر (Regex)', 'video'));
-                }
-            });
-        }
-
-        return extractedItems;
+        return extracted;
 
     } catch (e) {
+        // في حالة الخطأ أو التايم أوت، نعتبر الرابط تالف أو غير قابل للقراءة
         return [];
     }
 }
 
 function isVideoExtension(url) {
     if(!url) return false;
-    return url.match(/\.(mp4|mkv|m3u8|mpd|avi|mov)/i) || url.includes('stream') || url.includes('manifest');
+    // قائمة الامتدادات التي نعتبرها فيديو 100% ولا نحتاج لفتحها
+    return /\.(mp4|mkv|m3u8|mpd|avi|mov|flv|webm)(\?|$)/i.test(url);
 }
 
 function createItem(url, label, type) {
@@ -211,35 +232,31 @@ function createItem(url, label, type) {
 function renderResults(results, container) {
     results.forEach(item => {
         if(item.error) return;
+        
+        // إزالة التكرار
+        const unique = [];
+        const map = new Map();
+        item.items.forEach(i => {
+            if(!map.has(i.url)) { map.set(i.url, true); unique.push(i); }
+        });
+
+        if(unique.length === 0) return; // لا تعرض المصادر الفارغة
+
         const box = document.createElement('div');
         box.className = 'source';
         
-        const unique = [];
-        const map = new Map();
-        item.links.forEach(l => {
-            if(!map.has(l.url)) { map.set(l.url, true); unique.push(l); }
-        });
-
-        if(unique.length === 0) {
-            box.innerHTML = `<h3>${item.source.name} <small>(0)</small></h3><div style="color:#777">لا توجد روابط فيديو.</div>`;
-            container.appendChild(box);
-            return;
-        }
-
         let html = unique.map((u, idx) => {
-            const uid = `lnk-${item.source.balanser}-${idx}`;
+            const uid = `lnk-${Math.random().toString(36).substr(2, 9)}`;
             
             let tagHTML = '';
-            
             if(u.type === 'video') {
-                tagHTML = '<span class="tag tag-video">ملف فيديو</span>';
-                // التحقق من الصلاحية
-                validateUrl(u.url, uid);
-            } else if (u.type === 'subtitle') {
+                tagHTML = '<span class="tag tag-video">فيديو</span>';
+                // نتحقق من صلاحية الرابط فقط (Ping) بدون تحميل
+                validateLink(u.url, uid);
+            } else if(u.type === 'subtitle') {
                 tagHTML = '<span class="tag tag-sub">ترجمة</span>';
-                validateUrl(u.url, uid);
             } else {
-                tagHTML = '<span class="tag tag-other">غير معروف</span>';
+                tagHTML = '<span class="tag tag-page">صفحة</span>';
             }
 
             return `
@@ -247,7 +264,7 @@ function renderResults(results, container) {
                 <div class="link-info">
                     <div>
                         ${tagHTML}
-                        <span id="status-${uid}" class="tag status-checking">جاري التحقق...</span>
+                        <span id="st-${uid}" class="status st-wait" style="display:${u.type==='video'?'inline-block':'none'}">فحص...</span>
                         <strong>${u.label}</strong>
                     </div>
                     <a href="${u.url}" target="_blank">${u.url}</a>
@@ -255,33 +272,29 @@ function renderResults(results, container) {
             </div>`;
         }).join('');
 
-        box.innerHTML = `<h3>${item.source.name} <small>(${unique.length})</small></h3><div class="link-group">${html}</div>`;
+        box.innerHTML = `<h3>${item.source.name} <small>(${unique.length})</small></h3><div>${html}</div>`;
         container.appendChild(box);
     });
 }
 
-// دالة التحقق (HEAD Request Only)
-async function validateUrl(url, id) {
-    const el = document.getElementById(`status-${id}`);
+// دالة التحقق الخفيفة جداً (Ping)
+async function validateLink(url, id) {
+    const el = document.getElementById(`st-${id}`);
     if(!el) return;
 
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000); // 5 ثواني
+        const timeout = setTimeout(() => controller.abort(), 5000);
         
-        // إرسال طلب HEAD فقط (للتحقق من الروابط دون تحميل المحتوى)
-        // mode: 'no-cors' ضروري لأن السيرفرات الخارجية عادة تمنع الطلبات من المتصفح
-        // إذا لم يحدث خطأ في الشبكة، نعتبر الرابط متاحاً
+        // HEAD request فقط - لا يحمل البدي
         await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
         
         clearTimeout(timeout);
-        
-        el.textContent = "صالح (متاح)";
-        el.className = "tag status-valid";
-    } catch (err) {
-        // في حالة الخطأ (Timeout أو DNS Error)
-        el.textContent = "غير متاح / خطأ";
-        el.className = "tag status-invalid";
+        el.textContent = "متاح";
+        el.className = "status st-ok";
+    } catch {
+        el.textContent = "غير متاح";
+        el.className = "status st-err";
     }
 }
 </script>
