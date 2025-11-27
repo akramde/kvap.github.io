@@ -2,14 +2,29 @@
 <html lang="ar">
 <head>
 <meta charset="UTF-8" />
-<title>Video Fetcher - Smart Crawler</title>
+<title>Video Fetcher - Auto Data</title>
 <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background-color: #f4f4f9; padding: 20px; }
-    .input-group { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .input-group { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative; }
     label { display: block; margin-top: 10px; font-weight: bold; font-size: 14px; color: #555; }
     input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-    button { margin-top: 20px; padding: 12px 20px; background-color: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
-    button:hover { background-color: #59359a; }
+    
+    /* تنسيق زر الجلب التلقائي */
+    .auto-btn {
+        background-color: #17a2b8;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        font-size: 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 5px;
+        display: inline-block;
+    }
+    .auto-btn:hover { background-color: #138496; }
+
+    button.main-btn { margin-top: 20px; padding: 12px 20px; background-color: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
+    button.main-btn:hover { background-color: #59359a; }
     
     .source { background: white; margin: 15px 0; padding: 15px; border-right: 5px solid #28a745; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 4px; }
     .source h3 { margin-top: 0; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 10px; }
@@ -29,22 +44,31 @@
     .st-err { background-color: #dc3545; }
 
     .loader { display: none; text-align: center; margin-top: 20px; color: #555; }
+    
+    /* تأثير تحميل صغير داخل الحقل */
+    .loading-input { background-color: #f0f0f0; color: #999; }
 </style>
 </head>
 <body>
 
-<h2>المستخرج الذكي (بدون تحميل خلفي)</h2>
+<h2>المستخرج الذكي (مع جلب بيانات تلقائي)</h2>
 
 <div class="input-group">
-    <label>ID: <input id="id" value="1309012" /></label>
-    <label>IMDB ID: <input id="imdb" value="tt32123395" /></label>
-    <label>Kinopoisk ID: <input id="kp_id" value="6638362" /></label>
+    <label>ID (TMDB/Lampa): <input id="id" value="1309012" /></label>
+    
+    <label>IMDB ID: 
+        <input id="imdb" value="tt32123395" onchange="fetchKinopoiskData()" placeholder="أدخل المعرف ثم اضغط خارج المربع" />
+    </label>
+    <button type="button" class="auto-btn" onclick="fetchKinopoiskData()">جلب Kinopoisk ID تلقائياً</button>
+
+    <label>Kinopoisk ID: <input id="kp_id" value="" placeholder="سيتم تعبئته تلقائياً..." /></label>
+    
     <label>الاسم: <input id="title" value="Альтер" /></label>
     <label>الاسم الأصلي: <input id="orig_title" value="Altered" /></label>
     <label>السنة: <input id="year" value="2025" /></label>
 </div>
 
-<button type="button" onclick="startProcess()">بدء العملية</button>
+<button type="button" class="main-btn" onclick="startProcess()">بدء العملية</button>
 
 <div id="loader" class="loader">جاري العمل... <span id="status-text"></span></div>
 <div id="output"></div>
@@ -52,6 +76,48 @@
 <script>
 const parser = new DOMParser();
 
+// --- دالة جلب Kinopoisk ID من Wikidata ---
+async function fetchKinopoiskData() {
+    const imdbInput = document.getElementById('imdb');
+    const kpInput = document.getElementById('kp_id');
+    const imdbId = imdbInput.value.trim();
+
+    if (!imdbId) return;
+
+    // تأثير بصري أثناء التحميل
+    kpInput.value = "جاري البحث في Wikidata...";
+    kpInput.classList.add('loading-input');
+
+    // استعلام SPARQL الديناميكي
+    const sparqlQuery = `SELECT ?kinopoisk_id WHERE { ?item wdt:P345 "${imdbId}". ?item wdt:P2603 ?kinopoisk_id. }`;
+    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
+
+    try {
+        const response = await fetch(url, {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (data.results.bindings.length > 0) {
+            const foundId = data.results.bindings[0].kinopoisk_id.value;
+            kpInput.value = foundId;
+            // وميض أخضر للتأكيد
+            kpInput.style.borderColor = "green";
+            setTimeout(() => kpInput.style.borderColor = "#ddd", 2000);
+        } else {
+            kpInput.value = "";
+            kpInput.placeholder = "لم يتم العثور على Kinopoisk ID لهذا الفيلم";
+        }
+    } catch (error) {
+        console.error("Wikidata Error:", error);
+        kpInput.value = "";
+        kpInput.placeholder = "خطأ في الاتصال بـ Wikidata";
+    } finally {
+        kpInput.classList.remove('loading-input');
+    }
+}
+
+// --- دالة بدء العملية الرئيسية ---
 async function startProcess(){
   const params = {
       id: document.getElementById('id').value,
@@ -91,12 +157,10 @@ async function startProcess(){
 
       statusText.textContent = `فحص ${sources.length} مصدر...`;
 
-      // معالجة المصادر بالتوالي أو التوازي
       const promises = sources.map(async (s) => {
         const infoUrl = `${s.url}?id=${params.id}&imdb_id=${params.imdb}&kinopoisk_id=${params.kp_id}&title=${params.title}&original_title=${params.orig_title}&year=${params.year}`;
         
         try {
-            // هنا يبدأ السحر: دالة processUrl تقرر هل تفتح الرابط أم لا
             const items = await processUrl(infoUrl, s.name, 0);
             return { source: s, items: items };
         } catch (e) {
@@ -114,54 +178,41 @@ async function startProcess(){
   }
 }
 
-/**
- * الدالة الذكية: تقرر هل الرابط فيديو (للعرض فقط) أم صفحة (للفتح والاستخراج)
- */
 async function processUrl(url, sourceName, depth) {
     if (depth > 2) return [];
 
-    // 1. الفحص السريع بالامتداد (Static Check)
     if (isVideoExtension(url)) {
         return [createItem(url, "فيديو مباشر (من الامتداد)", "video")];
     }
 
     try {
-        // 2. الفحص عبر الشبكة (HEAD Request) للتأكد من النوع دون التحميل
-        // نستخدم AbortController لقطع الاتصال بسرعة إذا تأخر
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 ثواني مهلة
+        const timeoutId = setTimeout(() => controller.abort(), 4000); 
 
-        // نحاول جلب المحتوى. إذا كان المصدر Lite/JSON، عادة يرجع نص بسرعة.
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
 
-        // التحقق من نوع المحتوى قبل قراءة النص
         const contentType = response.headers.get("content-type");
         
-        // إذا كان السيرفر يقول أن هذا فيديو، توقف فوراً ولا تقرأ النص!
         if (contentType && (contentType.includes("video") || contentType.includes("mpegurl") || contentType.includes("octet-stream"))) {
             return [createItem(url, "فيديو (تم كشفه من الهيدر)", "video")];
         }
 
-        // إذا وصلنا هنا، فالرابط غالبًا JSON أو HTML، يمكننا قراءته بأمان
         const html = await response.text();
         const doc = parser.parseFromString(html, 'text/html');
         const elements = doc.querySelectorAll('[data-json]');
         
         let extracted = [];
-        let subLinks = []; // روابط للصفحات الفرعية
+        let subLinks = []; 
 
-        // إذا لم نجد عناصر data-json وكان النص يحتوي على روابط فيديو مباشرة (Regex)
-        // هذا يعني أننا ربما فتحنا قائمة تشغيل m3u8 كنص بالخطأ، أو صفحة بسيطة
         if (elements.length === 0) {
              const regexLinks = [...html.matchAll(/https?:\/\/[^"'<>\s]+\.(mpd|m3u8|mp4)/g)];
              if (regexLinks.length > 0) {
                  regexLinks.forEach(m => extracted.push(createItem(m[0], "رابط Regex", "video")));
-                 return extracted; // انتهينا
+                 return extracted;
              }
         }
 
-        // تحليل JSON المستخرج
         elements.forEach(el => {
             try {
                 let jsonStr = el.getAttribute('data-json');
@@ -173,24 +224,17 @@ async function processUrl(url, sourceName, depth) {
                 if(obj.voice_name) label += ` (${obj.voice_name})`;
                 if(obj.maxquality) label += ` [${obj.maxquality}]`;
 
-                // دالة مساعدة لإضافة الرابط المناسب
                 const handleLink = (linkUrl, linkLabel, typeOverride) => {
                     if (!linkUrl) return;
-                    
-                    // إذا كان رابط فيديو صريح
                     if (isVideoExtension(linkUrl) || typeOverride === 'video') {
                         extracted.push(createItem(linkUrl, linkLabel, "video"));
-                    } 
-                    // إذا كان رابط تصفح (مجلد/موسم)
-                    else {
-                        // نضيفه لقائمة الروابط التي سنفتحها لاحقاً
+                    } else {
                         subLinks.push({ url: linkUrl, label: linkLabel });
                     }
                 };
 
-                // فحص الحقول
                 if (obj.url) handleLink(obj.url, label);
-                if (obj.stream) handleLink(obj.stream, label, "video"); // stream غالبا فيديو
+                if (obj.stream) handleLink(obj.stream, label, "video");
                 
                 if (obj.quality) {
                     Object.keys(obj.quality).forEach(q => handleLink(obj.quality[q], `${label} [${q}]`, "video"));
@@ -203,7 +247,6 @@ async function processUrl(url, sourceName, depth) {
             } catch(e) {}
         });
 
-        // 3. التكرار (Recursion): فتح روابط التصفح التي وجدناها
         if (subLinks.length > 0) {
             const promises = subLinks.map(sub => processUrl(sub.url, sourceName, depth + 1));
             const subResults = await Promise.all(promises);
@@ -213,14 +256,12 @@ async function processUrl(url, sourceName, depth) {
         return extracted;
 
     } catch (e) {
-        // في حالة الخطأ أو التايم أوت، نعتبر الرابط تالف أو غير قابل للقراءة
         return [];
     }
 }
 
 function isVideoExtension(url) {
     if(!url) return false;
-    // قائمة الامتدادات التي نعتبرها فيديو 100% ولا نحتاج لفتحها
     return /\.(mp4|mkv|m3u8|mpd|avi|mov|flv|webm)(\?|$)/i.test(url);
 }
 
@@ -233,14 +274,13 @@ function renderResults(results, container) {
     results.forEach(item => {
         if(item.error) return;
         
-        // إزالة التكرار
         const unique = [];
         const map = new Map();
         item.items.forEach(i => {
             if(!map.has(i.url)) { map.set(i.url, true); unique.push(i); }
         });
 
-        if(unique.length === 0) return; // لا تعرض المصادر الفارغة
+        if(unique.length === 0) return;
 
         const box = document.createElement('div');
         box.className = 'source';
@@ -251,7 +291,6 @@ function renderResults(results, container) {
             let tagHTML = '';
             if(u.type === 'video') {
                 tagHTML = '<span class="tag tag-video">فيديو</span>';
-                // نتحقق من صلاحية الرابط فقط (Ping) بدون تحميل
                 validateLink(u.url, uid);
             } else if(u.type === 'subtitle') {
                 tagHTML = '<span class="tag tag-sub">ترجمة</span>';
@@ -277,7 +316,6 @@ function renderResults(results, container) {
     });
 }
 
-// دالة التحقق الخفيفة جداً (Ping)
 async function validateLink(url, id) {
     const el = document.getElementById(`st-${id}`);
     if(!el) return;
@@ -286,7 +324,6 @@ async function validateLink(url, id) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
         
-        // HEAD request فقط - لا يحمل البدي
         await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
         
         clearTimeout(timeout);
@@ -295,6 +332,13 @@ async function validateLink(url, id) {
     } catch {
         el.textContent = "غير متاح";
         el.className = "status st-err";
+    }
+}
+
+// تشغيل الجلب تلقائياً عند تحميل الصفحة إذا كان هناك قيمة
+window.onload = function() {
+    if(document.getElementById('imdb').value) {
+        fetchKinopoiskData();
     }
 }
 </script>
